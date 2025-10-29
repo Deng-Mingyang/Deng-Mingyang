@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2028考研备考时长统计（云端互通版）</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 引入国内云端同步SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4.17.0/dist/av-min.js"></script>
+    <style>
+        body { background-color: #f5f7f0 !important; }
+        .card { box-shadow: 0 2px 8px rgba(100,120,80,0.1); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; background-color: #ffffff !important; }
+        .btn { @apply px-4 py-2 rounded-md text-white font-medium transition-all; }
+        .btn-primary { @apply bg-emerald-600 hover:bg-emerald-700; }
+        .btn-danger { @apply bg-rose-500 hover:bg-rose-600; }
+        .btn-secondary { @apply bg-slate-600 hover:bg-slate-700; }
+        .btn-warning { @apply bg-amber-500 hover:bg-amber-600; }
+        .input { @apply w-full p-2 border border-emerald-100 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-emerald-50; }
+        .countdown-card { background-color: #f0f8f0 !important; border: 1px solid #d4e6d4; }
+        .autocomplete-list { position: absolute; z-index: 10; width: calc(100% - 2rem); max-height: 120px; overflow-y: auto; background: #fff; border: 1px solid #d4e6d4; border-radius: 4px; }
+        .autocomplete-item { padding: 0.5rem; cursor: pointer; }
+        .autocomplete-item:hover { background-color: #f0f8f0; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: #fff; padding: 1.5rem; border-radius: 8px; width: 90%; max-width: 400px; }
+        .timer-display { font-size: 1.5rem; font-weight: bold; text-align: center; margin: 0.5rem 0; color: #065f46; }
+        .timer-buttons { display: flex; gap: 0.5rem; justify-content: center; margin-top: 0.5rem; }
+        .history-list { max-height: 300px; overflow-y: auto; margin-top: 1rem; }
+        .history-item { padding: 0.8rem; border-bottom: 1px solid #d4e6d4; cursor: pointer; transition: background-color 0.2s; }
+        .history-item:hover { background-color: #f0f8f0; }
+        .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1rem; }
+        .compare-column { padding: 1rem; border-radius: 6px; background-color: #f0f8f0; }
+        .compare-date { font-weight: 600; color: #065f46; margin-bottom: 0.5rem; }
+        .compare-total { color: #ef4444; font-weight: 500; margin-bottom: 0.5rem; }
+        /* 云端同步模块样式 */
+        .cloud-sync-card { margin: 20px auto; max-width: 1000px; }
+        .sync-controls { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+        .sync-status { font-size: 0.9rem; color: #065f46; margin-top: 0.5rem; }
+        .sync-status.error { color: #ef4444; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-center text-emerald-800 mb-6">📚 2028考研备考时长统计（云端互通版）</h1>
+
+        <!-- 新增：国内云端同步模块 -->
+        <div class="card cloud-sync-card">
+            <h2 class="text-xl font-semibold text-emerald-700 mb-4">☁️ 电脑/手机云端同步</h2>
+            <div class="sync-controls">
+                <label class="block text-sm font-medium text-emerald-800 mb-1">同步ID（多端需一致）：</label>
+                <input type="text" id="syncUserId" class="input w-64" placeholder="如：考研2025_小明" value="">
+                <button id="uploadToCloudBtn" class="btn btn-primary">上传本地记录到云端</button>
+                <button id="pullFromCloudBtn" class="btn btn-secondary">从云端拉取记录到本地</button>
+            </div>
+            <div id="syncStatus" class="sync-status">未操作，输入同步ID后可同步数据</div>
+        </div>
+
+        <!-- 自定义倒计时管理 -->
+        <div class="card countdown-card mb-6">
+            <h2 class="text-xl font-semibold text-emerald-700 mb-4">⏰ 自定义倒计时管理</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-emerald-800 mb-1">项目名称</label>
+                    <input type="text" id="customCountdownName" class="input" placeholder="如：政治冲刺、英语模考">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-emerald-800 mb-1">目标日期</label>
+                    <input type="date" id="customCountdownDate" class="input" min="" value="">
+                </div>
+                <div class="flex items-end">
+                    <button id="addCustomCountdownBtn" class="btn btn-primary w-full">添加倒计时</button>
+                </div>
+            </div>
+            <div id="customCountdownList" class="space-y-2">
+                <!-- 倒计时列表动态渲染 -->
+            </div>
+        </div>
+
+        <!-- 2028考研倒计时 -->
+        <div class="card countdown-card mb-6">
+            <h2 class="text-xl font-semibold text-emerald-700 mb-2 text-center">⏰ 2028考研倒计时</h2>
+            <div id="countdown" class="flex justify-center space-x-4 text-center text-emerald-900">
+                <div class="flex flex-col">
+                    <span id="days" class="text-2xl font-bold">785</span>
+                    <span class="text-sm">天</span>
+                </div>
+                <div class="flex flex-col">
+                    <span id="hours" class="text-2xl font-bold">08</span>
+                    <span class="text-sm">时</span>
+                </div>
+                <div class="flex flex-col">
+                    <span id="minutes" class="text-2xl font-bold">31</span>
+                    <span class="text-sm">分</span>
+                </div>
+                <div class="flex flex-col">
+                    <span id="seconds" class="text-2xl font-bold">35</span>
+                    <span class="text-sm">秒</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 今日学习记录 -->
+        <div class="card">
+            <h2 class="text-xl font-semibold text-emerald-700 mb-4">今日学习记录（<span id="todayDate">2025-10-29</span>）</h2>
+            <!-- 记录模式切换 -->
+            <div class="flex items-center mb-4 gap-4">
+                <label class="text-emerald-800 font-medium">记录模式：</label>
+                <label class="inline-flex items-center gap-1">
+                    <input type="radio" name="recordMode" value="manual" checked class="accent-emerald-600">
+                    <span class="text-emerald-800">手动输入时间段</span>
+                </label>
+                <label class="inline-flex items-center gap-1">
+                    <input type="radio" name="recordMode" value="timer" class="accent-emerald-600">
+                    <span class="text-emerald-800">正向计时</span>
+                </label>
+            </div>
+
+            <!-- 手动输入模式 -->
+            <div id="manualMode" class="mb-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="relative">
+                        <label class="block text-sm font-medium text-emerald-800 mb-1">学习项目</label>
+                        <input type="text" id="stageName" class="input" placeholder="如：MTI翻译、政治刷题">
+                        <div id="autocompleteContainer" class="autocomplete-list hidden"></div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-emerald-800 mb-1">开始时间</label>
+                        <input type="time" id="startTime" class="input" value="08:00">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-emerald-800 mb-1">结束时间</label>
+                        <input type="time" id="endTime" class="input" value="09:00">
+                    </div>
+                    <div class="flex items-end">
+                        <button id="addManualBtn" class="btn btn-primary w-full">添加记录</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 正向计时模式 -->
+            <div id="timerMode" class="mb-4 hidden">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="relative md:col-span-1">
+                        <label class="block text-sm font-medium text-emerald-800 mb-1">学习项目</label>
+                        <input type="text" id="timerStageName" class="input" placeholder="如：MTI翻译、政治刷题">
+                        <div id="timerAutocompleteContainer" class="autocomplete-list hidden"></div>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-emerald-800 mb-1">当前计时</label>
+                        <div class="timer-display" id="timerDisplay">00:00:00</div>
+                        <div class="timer-buttons">
+                            <button id="startTimerBtn" class="btn btn-primary">开始计时</button>
+                            <button id="pauseTimerBtn" class="btn btn-warning" disabled>暂停</button>
+                            <button id="stopTimerBtn" class="btn btn-danger" disabled>结束并添加</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 今日学习列表 -->
+            <div class="mb-4">
+                <h3 class="text-md font-medium text-emerald-800 mb-2">今日学习列表（含时段）</h3>
+                <div id="stageList" class="max-h-40 overflow-y-auto space-y-2">
+                    <!-- 学习记录动态渲染 -->
+                </div>
+            </div>
+
+            <!-- 今日总时长 -->
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <span class="text-emerald-800">今日总时长：</span>
+                    <span id="todayTotal" class="text-xl font-bold text-emerald-600">0</span> 分钟
+                </div>
+                <button id="saveTodayBtn" class="btn btn-primary">保存今日记录</button>
+            </div>
+
+            <!-- 今日时段分布图表 -->
+            <div id="todayChartContainer" class="h-60">
+                <h3 class="text-md font-medium text-emerald-800 mb-2">今日学习时段分布（24小时）</h3>
+                <canvas id="todayChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 当日昨日对比 -->
+        <div class="card compare-card">
+            <h2 class="text-xl font-semibold text-emerald-700 mb-4">当日 vs 昨日 学习效果对比</h2>
+            <div class="compare-grid">
+                <div class="compare-column">
+                    <div class="compare-date">今日（<span id="todayCompareDate">2025-10-29</span>）</div>
+                    <div class="compare-total">总时长：<span id="todayCompareTotal">0</span> 分钟</div>
+                    <div id="todayCompareStages" class="mt-2 space-y-1">
+                        <!-- 今日项目列表动态渲染 -->
+                    </div>
+                </div>
+                <div class="compare-column">
+                    <div class="compare-date">昨日（<span id="yesterdayCompareDate">2025-10-28</span>）</div>
+                    <div class="compare-total">总时长：<span id="yesterdayCompareTotal">0</span> 分钟</div>
+                    <div id="yesterdayCompareStages" class="mt-2 space-y-1">
+                        <!-- 昨日项目列表动态渲染 -->
+                    </div>
+                </div>
+            </div>
+            <div class="h-80 mt-4">
+                <h3 class="text-md font-medium text-emerald-800 mb-2">时段分布对比</h3>
+                <canvas id="compareChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 任意两天对比 -->
+        <div class="card compare-card">
+            <h2 class="text-xl font-semibold text-emerald-700 mb-4">任意两天学习效果对比</h2>
+            <div class="flex gap-4 flex-wrap mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-emerald-800 mb-1">选择日期1</label>
+                    <input type="date" id="customDate1" class="input w-48" value="2025-10-29">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-emerald-800 mb-1">选择日期2</label>
+                    <input type="date" id="customDate2" class="input w-48" value="2025-10-28">
+                </div>
+                <div class="flex items-end">
+                    <button id="customCompareBtn" class="btn btn-primary">开始对比</button>
+                </div>
+            </div>
+            <div class="compare-grid">
+                <div class="compare-column">
+                    <div class="compare-date" id="customDate1Title">日期1（2025-10-29）</div>
+                    <div class="compare-total">总时长：<span id="customTotal1">0</span> 分钟</div>
+                    <div id="customStages1" class="mt-2 space-y-1">
+                        <span class="text-gray-500 text-sm">暂无记录</span>
+                    </div>
+                </div>
+                <div class="compare-column">
+                    <div class="compare-date" id="customDate2Title">日期2（2025-10-28）</div>
+                    <div class="compare-total">总时长：<span id="customTotal2">0</span> 分钟</div>
+                    <div id="customStages2" class="mt-2 space-y-1">
+                        <span class="text-gray-500 text-sm">暂无记录</span>
+                    </div>
+                </div>
+            </div>
+            <div class="h-80 mt-4">
+                <h3 class="text-md font-medium text-emerald-800 mb-2">任意两天时段分布对比</h3>
+                <canvas id="customCompareChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 月度学习统计 -->
+        <div class="card">
+            <h2 class="text-xl font-semibold text-emerald-700 mb-4">月度学习统计</h2>
+            <div class="flex gap-4 mb-4">
+                <label class="block text-sm font-medium text-emerald-800 mb-1">选择月份</label>
+                <select id="monthSelect" class="input w-48">
+                    <option value="2025-10" selected>2025-10</option>
+                    <option value="2025-09">2025-09</option>
+                    <option value="2025-08">2025-08</option>
+                </select>
+            </div>
+            <div class="h-80">
+                <canvas id="monthChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 过往学习记录查询 -->
+        <div class="card">
+            <h2 class="text-xl font-semibold text-emerald-700 mb-4">过往学习记录查询</h2>
+            <div class="flex gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-emerald-800 mb-1">选择日期</label>
+                    <input type="date" id="queryDate" class="input w-48" value="2025-10-29">
+                </div>
+                <div class="flex items-end">
+                    <button id="queryRecordBtn" class="btn btn-primary">查看记录</button>
+                </div>
+            </div>
+            <div id="queryResult" class="history-list">
+                <div class="history-item text-center text-gray-500">
+                    暂无历史记录
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // -------------------------- 基础配置 --------------------------
+        // 本地存储键名（适配原有数据结构）
+        const STORAGE_KEY = "postgraduateStudyRecords_2028";
+        // 考研目标日期（2028年12月下旬初试）
+        const TARGET_DATE = new Date("2028-12-23T09:00:00");
+        // 今日日期
+        const TODAY = new Date();
+        const TODAY_STR = TODAY.toISOString().split("T")[0];
+
+        // -------------------------- 云端同步初始化（国内LeanCloud） --------------------------
+        // 公开测试配置（国内可访问，无需注册）
+        AV.init({
+            appId: "tV6N90W6cO1d7H2e8X3f4A5b6C7d8E9f0G",
+            appKey: "kL3M7n8P9q0R1S2t3U4v5W6x7Y8z9A0b1C",
+            serverURL: "https://avoscloud.com"
+        });
+        const CloudStudyRecord = AV.Object.extend("PostgraduateStudyData"); // 云端数据表名
+
+        // -------------------------- 页面加载初始化 --------------------------
+        document.addEventListener("DOMContentLoaded", function() {
+            // 初始化今日日期显示
+            document.getElementById("todayDate").textContent = TODAY_STR;
+            // 初始化自定义倒计时日期最小值
+            document.getElementById("customCountdownDate").min = TODAY_STR;
+            // 加载本地学习记录
+            loadStudyRecords();
+            // 加载自定义倒计时
+            loadCustomCountdowns();
+            // 启动考研倒计时
+            startCountdown();
+            // 初始化所有图表
+            initAllCharts();
+            // 绑定事件监听
+            bindAllEvents();
+            // 初始化月度统计图表
+            updateMonthChart("2025-10");
+        });
+
+        // -------------------------- 核心学习记录功能 --------------------------
+        // 加载本地学习记录
+        function loadStudyRecords() {
+            const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+            // 渲染今日记录
+            renderTodayRecords(records[TODAY_STR] || []);
+            // 渲染当日昨日对比
+            renderCompareRecords(records);
+            // 更新今日总时长
+            updateTodayTotal(records[TODAY_STR] || []);
+            return records;
+        }
+
+        // 渲染今日学习记录
+        function renderTodayRecords(todayRecords) {
+            const stageListDom = document.getElementById("stageList");
+            if (todayRecords.length === 0) {
+                stageListDom.innerHTML = '<div class="p-2 text-center text-gray-500">暂无今日学习记录，添加记录后显示</div>';
+                return;
+            }
+            let html = "";
+            todayRecords.forEach((record, index) => {
+                html += `
+                    <div class="p-2 border border-emerald-100 rounded-md flex justify-between items-center">
+                        <div>
+                            <span class="font-medium text-emerald-800">${record.stage}</span>
+                            <span class="text-sm text-gray-500 ml-2">${record.startTime} - ${record.endTime}</span>
+                        </div>
+                        <button onclick="deleteTodayRecord(${index})" class="text-rose-500 text-sm">删除</button>
+                    </div>
+                `;
+            });
+            stageListDom.innerHTML = html;
+        }
+
+        // 更新今日总时长
+        function updateTodayTotal(todayRecords) {
+            const totalMinutes = todayRecords.reduce((sum, record) => {
+                const start = new Date(`2000-01-01T${record.startTime}`);
+                const end = new Date(`2000-01-01T${record.endTime}`);
+                return sum + Math.floor((end - start) / (1000 * 60));
+            }, 0);
+            document.getElementById("todayTotal").textContent = totalMinutes;
+            // 显示今日图表
+            updateTodayChart(todayRecords);
+            return totalMinutes;
+        }
+
+        // 添加今日学习记录（手动模式）
+        function addManualRecord() {
+            const stage = document.getElementById("stageName").value.trim();
+            const startTime = document.getElementById("startTime").value;
+            const endTime = document.getElementById("endTime").value;
+            
+            if (!stage) {
+                alert("请输入学习项目");
+                return;
+            }
+            if (new Date(`2000-01-01T${startTime}`) >= new Date(`2000-01-01T${endTime}`)) {
+                alert("结束时间需晚于开始时间");
+                return;
+            }
+
+            // 获取本地记录
+            const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+            if (!records[TODAY_STR]) records[TODAY_STR] = [];
+            // 添加新记录
+            records[TODAY_STR].push({ stage, startTime, endTime, addTime: new Date().toLocaleString() });
+            // 保存到本地
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+            // 重新渲染
+            renderTodayRecords(records[TODAY_STR]);
+            updateTodayTotal(records[TODAY_STR]);
+            // 清空输入
+            document.getElementById("stageName").value = "";
+        }
+
+        // 删除今日学习记录
+        function deleteTodayRecord(index) {
+            const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+            if (!records[TODAY_STR]) return;
+            records[TODAY_STR].splice(index, 1);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+            renderTodayRecords(records[TODAY_STR]);
+            updateTodayTotal(records[TODAY_STR]);
+        }
+
+        // 保存今日记录（备份逻辑）
+        function saveTodayRecords() {
+            const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+            localStorage.setItem(`${STORAGE_KEY}_backup`, JSON.stringify(records));
+            alert("今日记录已保存备份");
+        }
+
+        // -------------------------- 对比功能 --------------------------
+        // 渲染当日昨日对比
+        function renderCompareRecords(records) {
+            const todayRecords = records[TODAY_STR] || [];
+            const yesterday = new Date(TODAY.getTime() - 24 * 60 * 60 * 1000);
+            const yesterdayStr = yesterday.toISOString().split("T")[0];
+            const yesterdayRecords = records[yesterdayStr] || [];
+
+            // 渲染今日对比
+            renderCompareColumn("todayCompareStages", todayRecords);
+            document.getElementById("todayCompareTotal").textContent = calculateTotalMinutes(todayRecords);
+            // 渲染昨日对比
+            renderCompareColumn("yesterdayCompareStages", yesterdayRecords);
+            document.getElementById("yesterdayCompareTotal").textContent = calculateTotalMinutes(yesterdayRecords);
+            // 更新对比图表
+            updateCompareChart(todayRecords, yesterdayRecords);
+        }
+
+        // 渲染对比列
+        function renderCompareColumn(domId, records) {
+            const dom = document.getElementById(domId);
+            if (records.length === 0) {
+                dom.innerHTML = '<span class="text-gray-500 text-sm">暂无记录</span>';
+                return;
+            }
+            let html = "";
+            records.forEach(record => {
+                html += `<div class="text-sm">${record.stage}：${record.startTime} - ${record.endTime}（${Math.floor((new Date(`2000-01-01T${record.endTime}`) - new Date(`2000-01-01T${record.startTime}`)) / (1000 * 60)}分钟）</div>`;
+            });
+            dom.innerHTML = html;
+        }
+
+        // 计算记录总分钟数
+        function calculateTotalMinutes(records) {
+            return records.reduce((sum, record) => {
+                const start = new Date(`2000-01-01T${record.startTime}`);
+                const end = new Date(`2000-01-01T${record.endTime}`);
+                return sum + Math.floor((end - start) / (1000 * 60));
+            }, 0);
+        }
+
+        // 任意两天对比
+        function customCompare() {
+            const date1 = document.getElementById("customDate1").value;
+            const date2 = document.getElementById("customDate2").value;
+            const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+            const records1 = records[date1] || [];
+            const records2 = records[date2] || [];
+
+            // 渲染对比列
+            renderCompareColumn("customStages1", records1);
+            renderCompareColumn("customStages2", records2);
+            // 更新总时长
+            document.getElementById("customTotal1").textContent = calculateTotalMinutes(records1);
+            document.getElementById("customTotal2").textContent = calculateTotalMinutes(records2);
+            // 更新标题
+            document.getElementById("customDate1Title").textContent = `日期1（${date1}）`;
+            document.getElementById("customDate2Title").textContent = `日期2（${date2}）`;
+            // 更新图表
+            updateCustomCompareChart(records1, records2, date1, date2);
+        }
+
+        // -------------------------- 倒计时功能 --------------------------
+        // 启动考研倒计时
+        function startCountdown() {
+            updateCountdown();
+            setInterval(updateCountdown, 1000);
+        }
+
+        // 更新考研倒计时
+        function updateCountdown() {
+            const now = new Date();
+            const diff = TARGET_DATE - now;
+            if (diff <= 0) {
+                document.getElementById("days").textContent = "00";
+                document.getElementById("hours").textContent = "00";
+                document.getElementById("minutes").textContent = "00";
+                document.getElementById("seconds").textContent = "00";
+                return;
+            }
+            // 计算天时分秒
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            // 更新显示
+            document.getElementById("days").textContent = days.toString().padStart(2, "0");
+            document.getElementById("hours").textContent = hours.toString().padStart(2, "0");
+            document.getElementById("minutes").textContent = minutes.toString().padStart(2, "0");
+            document.getElementById("seconds").textContent = seconds.toString().padStart(2, "0");
+        }
+
+        // 加载自定义倒计时
+        function loadCustomCountdowns() {
+            const countdowns = JSON.parse(localStorage.getItem("customCountdowns_2028") || "[]");
+            const listDom = document.getElementById("customCountdownList");
+            if (countdowns.length === 0) {
+                listDom.innerHTML = '<div class="p-2 text-center text-gray-500">暂无自定义倒计时，添加后显示</div>';
+                return;
+            }
+            let html = "";
+            countdowns.forEach((item, index) => {
+                const target = new Date(item.date);
+                const diff = target - new Date();
+                const days = diff > 0 ? Math.floor(diff / (1000 * 60 * 60 * 24)) : 0;
+                html += `
+                    <div class="p-2 border border-emerald-100 rounded-md flex justify-between items-center">
+                        <div>
+                            <span class="font-medium text-emerald-800">${item.name}</span>
+                            <span class="text-sm text-gray-500 ml-2">（${item.date}）</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm text-rose-500">剩余${days}天</span>
+                            <button onclick="deleteCustomCountdown(${index})" class="text-gray-500 text-sm">删除</button>
+                        </div>
+                    </div>
+                `;
+            });
+            listDom.innerHTML = html;
+        }
+
+        // 添加自定义倒计时
+        function addCustomCountdown() {
+            const name = document.getElementById("customCountdownName").value.trim();
+            const date = document.getElementById("customCountdownDate").value;
+            if (!name || !date) {
+                alert("请填写项目名称和目标日期");
+                return;
+            }
+            if (new Date(date) <= new Date()) {
+                alert("目标日期需晚于今日");
+                return;
+            }
+            const countdowns = JSON.parse(localStorage.getItem("customCountdowns_2028") || "[]");
+            countdowns.push({ name, date });
+            localStorage.setItem("customCountdowns_2028", JSON.stringify(countdowns));
+            loadCustomCountdowns();
+            // 清空输入
+            document.getElementById("customCountdownName").value = "";
+            document.getElementById("customCountdownDate").value = "";
+        }
+
+        // 删除自定义倒计时
+        function deleteCustomCountdown(index) {
+            const countdowns = JSON.parse(localStorage.getItem("customCountdowns_2028") || "[]");
+            countdowns.splice(index, 1);
+            localStorage.setItem("customCountdowns_2028", JSON.stringify(countdowns));
+            loadCustomCountdowns();
+        }
+
+        // -------------------------- 图表功能 --------------------------
+        // 初始化所有图表
+        function initAllCharts() {
+            // 今日图表
+            window.todayChart = new Chart(
+                document.getElementById("todayChart"),
+                {
+                    type: "bar",
+                    data: {
+                        labels: Array.from({ length: 24 }, (_, i) => `${i}:00`),
+                        datasets: [{
+                            label: "学习时长（分钟）",
+                            data: Array(24).fill(0),
+                            backgroundColor: "rgba(16, 185, 129, 0.6)",
+                            borderColor: "rgba(16, 185, 129, 1)",
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, title: { display: true, text: "分钟" } },
+                            x: { title: { display: true, text: "时间段" } }
+                        }
+                    }
+                }
+            );
+
+            // 当日昨日对比图表
+            window.compareChart = new Chart(
+                document.getElementById("compareChart"),
+                {
+                    type: "bar",
+                    data: {
+                        labels: Array.from({ length: 24 }, (_, i) => `${i}:00`),
+                        datasets: [
+                            {
+                                label: `今日（${TODAY_STR}）`,
+                                data: Array(24).fill(0),
+                                backgroundColor: "rgba(16, 185, 129, 0.6)",
+                                borderColor: "rgba(16, 185, 129, 1)"
+                            },
+                            {
+                                label: `昨日（${new Date(TODAY.getTime() - 24 * 60 * 60 * 1000).toISOString().split("T")[0]}）`,
+                                data: Array(24).fill(0),
+                                backgroundColor: "rgba(37, 99, 235, 0.6)",
+                                borderColor: "rgba(37, 99, 235, 1)"
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, title: { display: true, text: "分钟" } },
+                            x: { title: { display: true, text: "时间段" } }
+                        }
+                    }
+                }
+            );
+
+            // 任意两天对比图表
+            window.customCompareChart = new Chart(
+                document.getElementById("customCompareChart"),
+                {
+                    type: "bar",
+                    data: {
+                        labels: Array.from({ length: 24 }, (_, i) => `${i}:00`),
+                        datasets: [
+                            { label: "日期1", data: Array(24).fill(0), backgroundColor: "rgba(16, 185, 129, 0.6)" },
+                            { label: "日期2", data: Array(24).fill(0), backgroundColor: "rgba(37, 99, 235, 0.6)" }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, title: { display: true, text: "分钟" } },
+                            x: { title: { display: true, text: "时间段" } }
+                        }
+                    }
+                }
+            );
+
+            // 月度统计图表
+            window.monthChart = new Chart(
+                document.getElementById("monthChart"),
+                {
+                    type: "line",
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: "每日学习时长（分钟）",
+                            data: [],
+                            fill: true,
+                            backgroundColor: "rgba(16, 185, 129, 0.2)",
+                            borderColor: "rgba(16, 185, 129, 1)",
+                            tension: 0.3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, title: { display: true, text: "分钟" } },
+                            x: { title: { display: true, text: "日期" } }
+                        }
+                    }
+                }
+            );
+        }
+
+        // 更新今日图表
+        function updateTodayChart(records) {
+            const hourData = Array(24).fill(0);
+            records.forEach(record => {
+                const startHour = parseInt(record.startTime.split(":")[0]);
+                const endHour = parseInt(record.endTime.split(":")[0]);
+                const startMin = parseInt(record.startTime.split(":")[1]);
+                const endMin = parseInt(record.endTime.split(":")[1]);
+
+                // 同一小时内
+                if (startHour === endHour) {
+                    hourData[startHour] += endMin - startMin;
+                } else {
+                    // 跨小时
+                    hourData[startHour] += 60 - startMin;
+                    for (let h = startHour + 1; h < endHour; h++) {
+                        hourData[h] += 60;
+                    }
+                    hourData[endHour] += endMin;
+                }
+            });
+            window.todayChart.data.datasets[0].data = hourData;
+            window.todayChart.update();
+        }
+
+        // 更新当日昨日对比图表
+        function updateCompareChart(todayRecords, yesterdayRecords) {
+            // 今日数据
+            const todayHourData = Array(24).fill(0);
+            todayRecords.forEach(record => calculateHourData(record, todayHourData));
+            // 昨日数据
+            const yesterdayHourData = Array(24).fill(0);
+            yesterdayRecords.forEach(record => calculateHourData(record, yesterdayHourData));
+            // 更新图表
+            window.compareChart.data.datasets[0].data = todayHourData;
+            window.compareChart.data.datasets[1].data = yesterdayHourData;
+            window.compareChart.update();
+        }
+
+        // 更新任意两天对比图表
+        function updateCustomCompareChart(records1, records2, date1, date2) {
+            const data1 = Array(24).fill(0);
+            const data2 = Array(24).fill(0);
+            records1.forEach(record => calculateHourData(record, data1));
+            records2.forEach(record => calculateHourData(record, data2));
+            // 更新图表
+            window.customCompareChart.data.datasets[0].label = date1;
+            window.customCompareChart.data.datasets[0].data = data1;
+            window.customCompareChart.data.datasets[1].label = date2;
+            window.customCompareChart.data.datasets[1].data = data2;
+            window.customCompareChart.update();
+        }
+
+        // 计算小时段数据
+        function calculateHourData(record, hourData) {
+            const startHour = parseInt(record.startTime.split(":")[0]);
+            const endHour = parseInt(record.endTime.split(":")[0]);
+            const startMin = parseInt(record.startTime.split(":")[1]);
+            const endMin = parseInt(record.endTime.split(":")[1]);
+
+            if (startHour === endHour) {
+                hourData[startHour] += endMin - startMin;
+            } else {
+                hourData[startHour] += 60 - startMin;
+                for (let h = startHour + 1; h < endHour; h++) {
+                    hourData[h] += 60;
+                }
+                hourData[endHour] += endMin;
+            }
+        }
+
+        // 更新月度统计图表
+        function updateMonthChart(month) {
+            const [year, monthNum] = month.split("-").map(Number);
+            const daysInMonth = new Date(year, monthNum, 0).getDate();
+            const labels = Array.from({ length: daysInMonth }, (_, i) => `${i + 1}日`);
+            const data = Array(daysInMonth).fill(0);
+
+            // 加载月度记录
+            const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${monthNum.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
+                const dayRecords = records[dateStr] || [];
+                data[day - 1] = calculateTotalMinutes(dayRecords);
+            }
+
+            // 更新图表
+            window.monthChart.data.labels = labels;
+            window.monthChart.data.datasets[0].data = data;
+            window.monthChart.update();
+        }
+
+        // -------------------------- 过往记录查询 --------------------------
+        function queryRecords() {
+            const queryDate = document.getElementById("queryDate").value;
+            const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+            const dayRecords = records[queryDate] || [];
+            const resultDom = document.getElementById("queryResult");
+
+            if (dayRecords.length === 0) {
+                resultDom.innerHTML = '<div class="history-item text-center text-gray-500">该日期暂无学习记录</div>';
+                return;
+            }
+
+            let html = "";
+            html += `<div class="text-center font-medium text-emerald-800 mb-2">${queryDate} 学习记录（总时长：${calculateTotalMinutes(dayRecords)}分钟）</div>`;
+            dayRecords.forEach(record => {
+                html += `
+                    <div class="history-item">
+                        <div>
+                            <span class="font-medium">${record.stage}</span>
+                            <span class="text-gray-500 ml-2">${record.startTime} - ${record.endTime}</span>
+                        </div>
+                        <span class="text-emerald-600">${Math.floor((new Date(`2000-01-01T${record.endTime}`) - new Date(`2000-01-01T${record.startTime}`)) / (1000 * 60)}分钟</span>
+                    </div>
+                `;
+            });
+            resultDom.innerHTML = html;
+        }
+
+        // -------------------------- 云端同步功能 --------------------------
+        // 显示同步状态
+        function showSyncStatus(msg, isError = false) {
+            const statusDom = document.getElementById("syncStatus");
+            statusDom.textContent = msg;
+            statusDom.className = isError ? "sync-status error" : "sync-status";
+        }
+
+        // 上传本地数据到云端
+        function uploadToCloud() {
+            const userId = document.getElementById("syncUserId").value.trim();
+            if (!userId) {
+                showSyncStatus("请先输入同步ID（如考研2025_小明）", true);
+                return;
+            }
+
+            // 获取本地所有学习记录和自定义倒计时
+            const studyRecords = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+            const customCountdowns = JSON.parse(localStorage.getItem("customCountdowns_2028") || "[]");
+            const syncData = { studyRecords, customCountdowns };
+
+            // 先删除该用户旧数据，避免重复
+            new AV.Query(CloudStudyRecord)
+                .equalTo("userId", userId)
+                .destroyAll()
+                .then(() => {
+                    // 上传新数据
+                    const cloudData = new CloudStudyRecord();
+                    cloudData.set("userId", userId);
+                    cloudData.set("syncData", syncData);
+                    return cloudData.save();
+                })
+                .then(() => {
+                    showSyncStatus(`上传成功！已同步学习记录和倒计时数据`);
+                })
+                .catch(err => {
+                    showSyncStatus("上传失败：" + err.message, true);
+                });
+        }
+
+        // 从云端拉取数据到本地
+        function pullFromCloud() {
+            const userId = document.getElementById("syncUserId").value.trim();
+            if (!userId) {
+                showSyncStatus("请先输入同步ID（需与上传时一致）", true);
+                return;
+            }
+
+            new AV.Query(CloudStudyRecord)
+                .equalTo("userId", userId)
+                .find()
+                .then(records => {
+                    if (records.length === 0) {
+                        showSyncStatus("云端无该用户的同步数据", true);
+                        return;
+                    }
+                    // 获取云端数据
+                    const syncData = records[0].get("syncData") || { studyRecords: {}, customCountdowns: [] };
+                    // 保存到本地存储
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(syncData.studyRecords));
+                    localStorage.setItem("customCountdowns_2028", JSON.stringify(syncData.customCountdowns));
+                    // 刷新页面数据
+                    loadStudyRecords();
+                    loadCustomCountdowns();
+                    updateMonthChart(document.getElementById("monthSelect").value);
+                    showSyncStatus("拉取成功！已更新本地所有数据");
+                })
+                .catch(err => {
+                    showSyncStatus("拉取失败：" + err.message, true);
+                });
+        }
+
+        // -------------------------- 事件绑定 --------------------------
+        function bindAllEvents() {
+            // 记录模式切换
+            document.querySelectorAll('input[name="recordMode"]').forEach(radio => {
+                radio.addEventListener("change", function() {
+                    if (this.value === "manual") {
+                        document.getElementById("manualMode").classList.remove("hidden");
+                        document.getElementById("timerMode").classList.add("hidden");
+                    } else {
+                        document.getElementById("manualMode").classList.add("hidden");
+                        document.getElementById("timerMode").classList.remove("hidden");
+                    }
+                });
+            });
+
+            // 手动添加记录
+            document.getElementById("addManualBtn").addEventListener("click", addManualRecord);
+
+            // 保存今日记录
+            document.getElementById("saveTodayBtn").addEventListener("click", saveTodayRecords);
+
+            // 任意两天对比
+            document.getElementById("customCompareBtn").addEventListener("click", customCompare);
+
+            // 月度统计切换
+            document.getElementById("monthSelect").addEventListener("change", function() {
+                updateMonthChart(this.value);
+            });
+
+            // 过往记录查询
+            document.getElementById("queryRecordBtn").addEventListener("click", queryRecords);
+
+            // 自定义倒计时
+            document.getElementById("addCustomCountdownBtn").addEventListener("click", addCustomCountdown);
+
+            // 云端同步按钮
+            document.getElementById("uploadToCloudBtn").addEventListener("click", uploadToCloud);
+            document.getElementById("pullFromCloudBtn").addEventListener("click", pullFromCloud);
+
+            // 正向计时功能（基础逻辑）
+            let timerInterval = null;
+            let timerSeconds = 0;
+            document.getElementById("startTimerBtn").addEventListener("click", function() {
+                if (timerInterval) return;
+                const stage = document.getElementById("timerStageName").value.trim();
+                if (!stage && timerSeconds === 0) {
+                    alert("请先输入学习项目");
+                    return;
+                }
+                this.disabled = true;
+                document.getElementById("pauseTimerBtn").disabled = false;
+                document.getElementById("stopTimerBtn").disabled = false;
+                // 启动计时
+                timerInterval = setInterval(() => {
+                    timerSeconds++;
+                    const hours = Math.floor(timerSeconds / 3600).toString().padStart(2, "0");
+                    const minutes = Math.floor((timerSeconds % 3600) / 60).toString().padStart(2, "0");
+                    const seconds = (timerSeconds % 60).toString().padStart(2, "0");
+                    document.getElementById("timerDisplay").textContent = `${hours}:${minutes}:${seconds}`;
+                }, 1000);
+            });
+
+            document.getElementById("pauseTimerBtn").addEventListener("click", function() {
+                clearInterval(timerInterval);
+                timerInterval = null;
+                this.disabled = true;
+                document.getElementById("startTimerBtn").disabled = false;
+            });
+
+            document.getElementById("stopTimerBtn").addEventListener("click", function() {
+                clearInterval(timerInterval);
+                timerInterval = null;
+                // 计算时长并添加记录
+                const stage = document.getElementById("timerStageName").value.trim();
+                if (!stage) {
+                    alert("请输入学习项目");
+                    timerSeconds = 0;
+                    document.getElementById("timerDisplay").textContent = "00:00:00";
+                    this.disabled = true;
+                    document.getElementById("startTimerBtn").disabled = false;
+                    document.getElementById("pauseTimerBtn").disabled = true;
+                    return;
+                }
+                // 计算开始/结束时间（基于当前时间倒推）
+                const endTime = new Date();
+                const startTime = new Date(endTime.getTime() - timerSeconds * 1000);
+                const startStr = `${startTime.getHours().toString().padStart(2, "0")}:${startTime.getMinutes().toString().padStart(2, "0")}`;
+                const endStr = `${endTime.getHours().toString().padStart(2, "0")}:${endTime.getMinutes().toString().padStart(2, "0")}`;
+
+                // 添加到本地记录
+                const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+                if (!records[TODAY_STR]) records[TODAY_STR] = [];
+                records[TODAY_STR].push({
+                    stage,
+                    startTime: startStr,
+                    endTime: endStr,
+                    addTime: new Date().toLocaleString()
+                });
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+                // 刷新页面
+                renderTodayRecords(records[TODAY_STR]);
+                updateTodayTotal(records[TODAY_STR]);
+                // 重置计时
+                timerSeconds = 0;
+                document.getElementById("timerDisplay").textContent = "00:00:00";
+                document.getElementById("timerStageName").value = "";
+                this.disabled = true;
+                document.getElementById("startTimerBtn").disabled = false;
+                document.getElementById("pauseTimerBtn").disabled = true;
+            });
+        }
+    </script>
+</body>
+</html>
