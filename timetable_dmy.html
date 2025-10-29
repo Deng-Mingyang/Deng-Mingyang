@@ -8,7 +8,77 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         /* 基础样式保留 */
-        body { background-color: #f5f7f0 !important; }
+        body { background-color: #f5f7f0 !important; <!-- 云端云端云端云端云端同步互通功能模块 -->
+<div style="margin: 20px auto; max-width: 800px; padding: 15px; border: 1px solid #eee; border-radius: 8px; background: #fff;">
+    <h3 style="color: #333; margin-bottom: 15px;">☁️ 云端数据同步（手机/电脑互通）</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px;">
+        <label>同步ID：</label>
+        <input type="text" id="syncUserId" placeholder="输入自定义ID（如考研2025）" style="padding: 6px; flex: 1; min-width: 150px;">
+        <button onclick="uploadData()" style="padding: 6px 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">上传本地</button>
+        <button onclick="pullData()" style="padding: 6px 12px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer;">拉取云端</button>
+    </div>
+    <div id="syncMsg" style="font-size: 14px; color: #666;"></div>
+</div>
+
+<!-- 云端同步核心脚本 -->
+<script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4.17.0/dist/av-min.js"></script>
+<script>
+    // 1. 配置（只需修改这里的存储键名，与你原有代码一致）
+    const STORAGE_KEY = "你的本地存储键名"; // 例如："examRecords" 或 "studyData"
+    AV.init({
+        appId: "tV6N90W6cO1d7H2e8X3f4A5b6C7d8E9f0G",
+        appKey: "kL3M7n8P9q0R1S2t3U4v5W6x7Y8z9A0b1C",
+        serverURL: "https://avoscloud.com"
+    });
+    const SyncData = AV.Object.extend("SyncData");
+
+    // 2. 显示消息
+    function showMsg(text, isError = false) {
+        const el = document.getElementById("syncMsg");
+        el.textContent = text;
+        el.style.color = isError ? "red" : "green";
+    }
+
+    // 3. 上传本地数据到云端
+    function uploadData() {
+        const userId = document.getElementById("syncUserId").value.trim();
+        if (!userId) { showMsg("请输入同步ID", true); return; }
+        
+        const localData = localStorage.getItem(STORAGE_KEY);
+        if (!localData) { showMsg("本地无数据可上传", true); return; }
+
+        // 先删除旧数据，再上传新数据
+        new AV.Query(SyncData)
+            .equalTo("userId", userId)
+            .destroyAll()
+            .then(() => {
+                const data = new SyncData();
+                data.set("userId", userId);
+                data.set("content", JSON.parse(localData));
+                return data.save();
+            })
+            .then(() => showMsg("上传成功！"))
+            .catch(err => showMsg("上传失败：" + err.message, true));
+    }
+
+    // 4. 从云端拉取数据到本地
+    function pullData() {
+        const userId = document.getElementById("syncUserId").value.trim();
+        if (!userId) { showMsg("请输入同步ID", true); return; }
+
+        new AV.Query(SyncData)
+            .equalTo("userId", userId)
+            .find()
+            .then(records => {
+                if (records.length === 0) { showMsg("云端无此ID数据", true); return; }
+                const cloudData = records[0].get("content");
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudData));
+                showMsg("拉取成功！数据已更新");
+                // 刷新页面数据（如果你的代码有刷新函数，这里调用，例如：refreshPage()）
+            })
+            .catch(err => showMsg("拉取失败：" + err.message, true));
+    }
+</script>}
         .card { box-shadow: 0 2px 8px rgba(100,120,80,0.1); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; background-color: #ffffff !important; }
         .btn { @apply px-4 py-2 rounded-md text-white font-medium transition-all; }
         .btn-primary { @apply bg-emerald-600 hover:bg-emerald-700; }
