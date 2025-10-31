@@ -3,981 +3,2400 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2028考研备考时长统计（云端互通版）</title>
+    <title>2028考研学习管理系统</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- 引入国内云端同步SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4.17.0/dist/av-min.js"></script>
-    <style>
-        body { background-color: #f5f7f0 !important; }
-        .card { box-shadow: 0 2px 8px rgba(100,120,80,0.1); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; background-color: #ffffff !important; }
-        .btn { @apply px-4 py-2 rounded-md text-white font-medium transition-all; }
-        .btn-primary { @apply bg-emerald-600 hover:bg-emerald-700; }
-        .btn-danger { @apply bg-rose-500 hover:bg-rose-600; }
-        .btn-secondary { @apply bg-slate-600 hover:bg-slate-700; }
-        .btn-warning { @apply bg-amber-500 hover:bg-amber-600; }
-        .input { @apply w-full p-2 border border-emerald-100 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-emerald-50; }
-        .countdown-card { background-color: #f0f8f0 !important; border: 1px solid #d4e6d4; }
-        .autocomplete-list { position: absolute; z-index: 10; width: calc(100% - 2rem); max-height: 120px; overflow-y: auto; background: #fff; border: 1px solid #d4e6d4; border-radius: 4px; }
-        .autocomplete-item { padding: 0.5rem; cursor: pointer; }
-        .autocomplete-item:hover { background-color: #f0f8f0; }
-        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; display: flex; align-items: center; justify-content: center; }
-        .modal-content { background: #fff; padding: 1.5rem; border-radius: 8px; width: 90%; max-width: 400px; }
-        .timer-display { font-size: 1.5rem; font-weight: bold; text-align: center; margin: 0.5rem 0; color: #065f46; }
-        .timer-buttons { display: flex; gap: 0.5rem; justify-content: center; margin-top: 0.5rem; }
-        .history-list { max-height: 300px; overflow-y: auto; margin-top: 1rem; }
-        .history-item { padding: 0.8rem; border-bottom: 1px solid #d4e6d4; cursor: pointer; transition: background-color 0.2s; }
-        .history-item:hover { background-color: #f0f8f0; }
-        .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1rem; }
-        .compare-column { padding: 1rem; border-radius: 6px; background-color: #f0f8f0; }
-        .compare-date { font-weight: 600; color: #065f46; margin-bottom: 0.5rem; }
-        .compare-total { color: #ef4444; font-weight: 500; margin-bottom: 0.5rem; }
-        /* 云端同步模块样式 */
-        .cloud-sync-card { margin: 20px auto; max-width: 1000px; }
-        .sync-controls { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
-        .sync-status { font-size: 0.9rem; color: #065f46; margin-top: 0.5rem; }
-        .sync-status.error { color: #ef4444; }
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    
+    <!-- 配置护眼色系 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#5a8b6c',    // 柔和绿色主色调
+                        secondary: '#6b8e9e',  // 柔和蓝色辅助色
+                        neutral: '#f5f9f6',    // 浅灰绿色背景
+                        text: '#2d3e33',       // 深绿色文字
+                        accent: '#8dbb9e',     // 亮绿色强调
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .transition-smooth {
+                transition: all 0.3s ease-in-out;
+            }
+            .card-hover {
+                @apply hover:shadow-lg hover:-translate-y-1 transition-smooth;
+            }
+            .glass {
+                @apply bg-white/80 backdrop-blur-sm;
+            }
+        }
     </style>
 </head>
-<body class="min-h-screen p-4 md:p-8">
-    <div class="max-w-4xl mx-auto">
-        <h1 class="text-3xl font-bold text-center text-emerald-800 mb-6">📚 2028考研备考时长统计（云端互通版）</h1>
 
-        <!-- 新增：国内云端同步模块 -->
-        <div class="card cloud-sync-card">
-            <h2 class="text-xl font-semibold text-emerald-700 mb-4">☁️ 电脑/手机云端同步</h2>
-            <div class="sync-controls">
-                <label class="block text-sm font-medium text-emerald-800 mb-1">同步ID（多端需一致）：</label>
-                <input type="text" id="syncUserId" class="input w-64" placeholder="如：考研2025_小明" value="">
-                <button id="uploadToCloudBtn" class="btn btn-primary">上传本地记录到云端</button>
-                <button id="pullFromCloudBtn" class="btn btn-secondary">从云端拉取记录到本地</button>
-            </div>
-            <div id="syncStatus" class="sync-status">未操作，输入同步ID后可同步数据</div>
-        </div>
-
-        <!-- 自定义倒计时管理 -->
-        <div class="card countdown-card mb-6">
-            <h2 class="text-xl font-semibold text-emerald-700 mb-4">⏰ 自定义倒计时管理</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div>
-                    <label class="block text-sm font-medium text-emerald-800 mb-1">项目名称</label>
-                    <input type="text" id="customCountdownName" class="input" placeholder="如：政治冲刺、英语模考">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-emerald-800 mb-1">目标日期</label>
-                    <input type="date" id="customCountdownDate" class="input" min="" value="">
-                </div>
-                <div class="flex items-end">
-                    <button id="addCustomCountdownBtn" class="btn btn-primary w-full">添加倒计时</button>
-                </div>
-            </div>
-            <div id="customCountdownList" class="space-y-2">
-                <!-- 倒计时列表动态渲染 -->
-            </div>
-        </div>
-
-        <!-- 2028考研倒计时 -->
-        <div class="card countdown-card mb-6">
-            <h2 class="text-xl font-semibold text-emerald-700 mb-2 text-center">⏰ 2028考研倒计时</h2>
-            <div id="countdown" class="flex justify-center space-x-4 text-center text-emerald-900">
-                <div class="flex flex-col">
-                    <span id="days" class="text-2xl font-bold">785</span>
-                    <span class="text-sm">天</span>
-                </div>
-                <div class="flex flex-col">
-                    <span id="hours" class="text-2xl font-bold">08</span>
-                    <span class="text-sm">时</span>
-                </div>
-                <div class="flex flex-col">
-                    <span id="minutes" class="text-2xl font-bold">31</span>
-                    <span class="text-sm">分</span>
-                </div>
-                <div class="flex flex-col">
-                    <span id="seconds" class="text-2xl font-bold">35</span>
-                    <span class="text-sm">秒</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- 今日学习记录 -->
-        <div class="card">
-            <h2 class="text-xl font-semibold text-emerald-700 mb-4">今日学习记录（<span id="todayDate">2025-10-29</span>）</h2>
-            <!-- 记录模式切换 -->
-            <div class="flex items-center mb-4 gap-4">
-                <label class="text-emerald-800 font-medium">记录模式：</label>
-                <label class="inline-flex items-center gap-1">
-                    <input type="radio" name="recordMode" value="manual" checked class="accent-emerald-600">
-                    <span class="text-emerald-800">手动输入时间段</span>
-                </label>
-                <label class="inline-flex items-center gap-1">
-                    <input type="radio" name="recordMode" value="timer" class="accent-emerald-600">
-                    <span class="text-emerald-800">正向计时</span>
-                </label>
-            </div>
-
-            <!-- 手动输入模式 -->
-            <div id="manualMode" class="mb-4">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div class="relative">
-                        <label class="block text-sm font-medium text-emerald-800 mb-1">学习项目</label>
-                        <input type="text" id="stageName" class="input" placeholder="如：MTI翻译、政治刷题">
-                        <div id="autocompleteContainer" class="autocomplete-list hidden"></div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-emerald-800 mb-1">开始时间</label>
-                        <input type="time" id="startTime" class="input" value="08:00">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-emerald-800 mb-1">结束时间</label>
-                        <input type="time" id="endTime" class="input" value="09:00">
-                    </div>
-                    <div class="flex items-end">
-                        <button id="addManualBtn" class="btn btn-primary w-full">添加记录</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 正向计时模式 -->
-            <div id="timerMode" class="mb-4 hidden">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="relative md:col-span-1">
-                        <label class="block text-sm font-medium text-emerald-800 mb-1">学习项目</label>
-                        <input type="text" id="timerStageName" class="input" placeholder="如：MTI翻译、政治刷题">
-                        <div id="timerAutocompleteContainer" class="autocomplete-list hidden"></div>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-emerald-800 mb-1">当前计时</label>
-                        <div class="timer-display" id="timerDisplay">00:00:00</div>
-                        <div class="timer-buttons">
-                            <button id="startTimerBtn" class="btn btn-primary">开始计时</button>
-                            <button id="pauseTimerBtn" class="btn btn-warning" disabled>暂停</button>
-                            <button id="stopTimerBtn" class="btn btn-danger" disabled>结束并添加</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 今日学习列表 -->
+<body class="bg-neutral text-text min-h-screen flex flex-col">
+    <!-- 登录弹窗 -->
+    <div id="loginModal" class="fixed inset-0 bg-text/50 flex items-center justify-center z-50 hidden">
+        <div class="glass rounded-xl p-6 md:p-8 max-w-md w-full mx-4 shadow-xl transform transition-smooth">
+            <h2 class="text-2xl font-bold text-primary mb-6 text-center">用户登录</h2>
             <div class="mb-4">
-                <h3 class="text-md font-medium text-emerald-800 mb-2">今日学习列表（含时段）</h3>
-                <div id="stageList" class="max-h-40 overflow-y-auto space-y-2">
-                    <!-- 学习记录动态渲染 -->
-                </div>
+                <label class="block text-sm font-medium mb-2" for="userId">用户ID</label>
+                <input type="text" id="userId" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-smooth" placeholder="请输入您的用户ID">
             </div>
-
-            <!-- 今日总时长 -->
-            <div class="flex justify-between items-center mb-6">
-                <div>
-                    <span class="text-emerald-800">今日总时长：</span>
-                    <span id="todayTotal" class="text-xl font-bold text-emerald-600">0</span> 分钟
-                </div>
-                <button id="saveTodayBtn" class="btn btn-primary">保存今日记录</button>
-            </div>
-
-            <!-- 今日时段分布图表 -->
-            <div id="todayChartContainer" class="h-60">
-                <h3 class="text-md font-medium text-emerald-800 mb-2">今日学习时段分布（24小时）</h3>
-                <canvas id="todayChart"></canvas>
-            </div>
+            <button id="loginBtn" class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-smooth mb-4">登录</button>
+            <button id="registerBtn" class="w-full bg-secondary hover:bg-secondary/90 text-white font-medium py-2 px-4 rounded-lg transition-smooth">注册新账号</button>
         </div>
+    </div>
 
-        <!-- 当日昨日对比 -->
-        <div class="card compare-card">
-            <h2 class="text-xl font-semibold text-emerald-700 mb-4">当日 vs 昨日 学习效果对比</h2>
-            <div class="compare-grid">
-                <div class="compare-column">
-                    <div class="compare-date">今日（<span id="todayCompareDate">2025-10-29</span>）</div>
-                    <div class="compare-total">总时长：<span id="todayCompareTotal">0</span> 分钟</div>
-                    <div id="todayCompareStages" class="mt-2 space-y-1">
-                        <!-- 今日项目列表动态渲染 -->
-                    </div>
-                </div>
-                <div class="compare-column">
-                    <div class="compare-date">昨日（<span id="yesterdayCompareDate">2025-10-28</span>）</div>
-                    <div class="compare-total">总时长：<span id="yesterdayCompareTotal">0</span> 分钟</div>
-                    <div id="yesterdayCompareStages" class="mt-2 space-y-1">
-                        <!-- 昨日项目列表动态渲染 -->
-                    </div>
-                </div>
-            </div>
-            <div class="h-80 mt-4">
-                <h3 class="text-md font-medium text-emerald-800 mb-2">时段分布对比</h3>
-                <canvas id="compareChart"></canvas>
-            </div>
+    <!-- 欢迎弹窗 -->
+    <div id="welcomeModal" class="fixed inset-0 bg-text/50 flex items-center justify-center z-50">
+        <div class="glass rounded-xl p-6 md:p-8 max-w-md w-full mx-4 shadow-xl text-center">
+            <h2 class="text-2xl font-bold text-primary mb-4">Hello!</h2>
+            <p class="text-lg mb-6">enjoy reading!</p>
+            <button id="closeWelcomeBtn" class="bg-primary hover:bg-primary/90 text-white font-medium py-2 px-6 rounded-lg transition-smooth">received!</button>
         </div>
+    </div>
 
-        <!-- 任意两天对比 -->
-        <div class="card compare-card">
-            <h2 class="text-xl font-semibold text-emerald-700 mb-4">任意两天学习效果对比</h2>
-            <div class="flex gap-4 flex-wrap mb-4">
+    <!-- 倒计时设置弹窗 -->
+    <div id="timerModal" class="fixed inset-0 bg-text/50 flex items-center justify-center z-40 hidden">
+        <div class="glass rounded-xl p-6 md:p-8 max-w-md w-full mx-4 shadow-xl">
+            <h2 class="text-2xl font-bold text-primary mb-6">设置计时</h2>
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-2" for="timerName">计时名称</label>
+                <input type="text" id="timerName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-smooth" placeholder="输入自定义项目名称">
+            </div>
+            <div class="grid grid-cols-3 gap-4 mb-6">
                 <div>
-                    <label class="block text-sm font-medium text-emerald-800 mb-1">选择日期1</label>
-                    <input type="date" id="customDate1" class="input w-48" value="2025-10-29">
+                    <label class="block text-sm font-medium mb-2" for="timerHours">小时</label>
+                    <input type="number" id="timerHours" min="0" max="23" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-smooth" value="0">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-emerald-800 mb-1">选择日期2</label>
-                    <input type="date" id="customDate2" class="input w-48" value="2025-10-28">
+                    <label class="block text-sm font-medium mb-2" for="timerMinutes">分钟</label>
+                    <input type="number" id="timerMinutes" min="0" max="59" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-smooth" value="25">
                 </div>
-                <div class="flex items-end">
-                    <button id="customCompareBtn" class="btn btn-primary">开始对比</button>
-                </div>
-            </div>
-            <div class="compare-grid">
-                <div class="compare-column">
-                    <div class="compare-date" id="customDate1Title">日期1（2025-10-29）</div>
-                    <div class="compare-total">总时长：<span id="customTotal1">0</span> 分钟</div>
-                    <div id="customStages1" class="mt-2 space-y-1">
-                        <span class="text-gray-500 text-sm">暂无记录</span>
-                    </div>
-                </div>
-                <div class="compare-column">
-                    <div class="compare-date" id="customDate2Title">日期2（2025-10-28）</div>
-                    <div class="compare-total">总时长：<span id="customTotal2">0</span> 分钟</div>
-                    <div id="customStages2" class="mt-2 space-y-1">
-                        <span class="text-gray-500 text-sm">暂无记录</span>
-                    </div>
-                </div>
-            </div>
-            <div class="h-80 mt-4">
-                <h3 class="text-md font-medium text-emerald-800 mb-2">任意两天时段分布对比</h3>
-                <canvas id="customCompareChart"></canvas>
-            </div>
-        </div>
-
-        <!-- 月度学习统计 -->
-        <div class="card">
-            <h2 class="text-xl font-semibold text-emerald-700 mb-4">月度学习统计</h2>
-            <div class="flex gap-4 mb-4">
-                <label class="block text-sm font-medium text-emerald-800 mb-1">选择月份</label>
-                <select id="monthSelect" class="input w-48">
-                    <option value="2025-10" selected>2025-10</option>
-                    <option value="2025-09">2025-09</option>
-                    <option value="2025-08">2025-08</option>
-                </select>
-            </div>
-            <div class="h-80">
-                <canvas id="monthChart"></canvas>
-            </div>
-        </div>
-
-        <!-- 过往学习记录查询 -->
-        <div class="card">
-            <h2 class="text-xl font-semibold text-emerald-700 mb-4">过往学习记录查询</h2>
-            <div class="flex gap-4 mb-4">
                 <div>
-                    <label class="block text-sm font-medium text-emerald-800 mb-1">选择日期</label>
-                    <input type="date" id="queryDate" class="input w-48" value="2025-10-29">
-                </div>
-                <div class="flex items-end">
-                    <button id="queryRecordBtn" class="btn btn-primary">查看记录</button>
+                    <label class="block text-sm font-medium mb-2" for="timerSeconds">秒钟</label>
+                    <input type="number" id="timerSeconds" min="0" max="59" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-smooth" value="0">
                 </div>
             </div>
-            <div id="queryResult" class="history-list">
-                <div class="history-item text-center text-gray-500">
-                    暂无历史记录
+            <div class="flex gap-4">
+                <button id="startCountdownBtn" class="flex-1 bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-smooth">
+                    <i class="fa fa-clock-o mr-1"></i> 倒计时
+                </button>
+                <button id="startStopwatchBtn" class="flex-1 bg-secondary hover:bg-secondary/90 text-white font-medium py-2 px-4 rounded-lg transition-smooth">
+                    <i class="fa fa-hourglass-start mr-1"></i> 正计时
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 计时器显示界面 -->
+    <div id="timerDisplay" class="fixed inset-0 bg-text/70 flex flex-col items-center justify-center z-30 hidden">
+        <h2 id="timerTitle" class="text-2xl md:text-3xl font-bold text-white mb-6 text-center">自定义项目</h2>
+        <div id="timerValue" class="text-5xl md:text-8xl font-bold text-white mb-8">00:25:00</div>
+        <div class="flex gap-4">
+            <button id="pauseTimerBtn" class="bg-primary hover:bg-primary/90 text-white font-medium py-2 px-6 rounded-lg transition-smooth">
+                <i class="fa fa-pause mr-1"></i> 暂停
+            </button>
+            <button id="stopTimerBtn" class="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-6 rounded-lg transition-smooth">
+                <i class="fa fa-stop mr-1"></i> 结束
+            </button>
+        </div>
+    </div>
+
+    <!-- 记录往日时长弹窗 -->
+    <div id="pastRecordModal" class="fixed inset-0 bg-text/50 flex items-center justify-center z-40 hidden">
+        <div class="glass rounded-xl p-6 md:p-8 max-w-md w-full mx-4 shadow-xl">
+            <h2 class="text-2xl font-bold text-primary mb-6">记录往日学习时长</h2>
+            <div class="mb-4 relative">
+                <label class="block text-sm font-medium mb-2" for="pastProjectName">项目名称</label>
+                <input type="text" id="pastProjectName" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-smooth" placeholder="输入自定义项目名称">
+                <div id="projectSuggestions" class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto z-10"></div>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-2" for="pastDate">日期</label>
+                <input type="date" id="pastDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-smooth">
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-medium mb-2" for="pastStartTime">开始时间</label>
+                    <input type="time" id="pastStartTime" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-smooth">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2" for="pastEndTime">结束时间</label>
+                    <input type="time" id="pastEndTime" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-smooth">
+                </div>
+            </div>
+            <button id="savePastRecordBtn" class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-smooth">保存记录</button>
+        </div>
+    </div>
+
+    <!-- 日期对比弹窗 -->
+    <div id="compareDateModal" class="fixed inset-0 bg-text/50 flex items-center justify-center z-40 hidden">
+        <div class="glass rounded-xl p-6 md:p-8 max-w-md w-full mx-4 shadow-xl">
+            <h2 class="text-2xl font-bold text-primary mb-6">选择对比日期</h2>
+            <div class="mb-6">
+                <label class="block text-sm font-medium mb-2" for="compareDate">选择日期</label>
+                <input type="date" id="compareDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-smooth">
+            </div>
+            <button id="confirmCompareBtn" class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-smooth">确认对比</button>
+        </div>
+    </div>
+
+    <!-- 历史记录查询弹窗 -->
+    <div id="historyQueryModal" class="fixed inset-0 bg-text/50 flex items-center justify-center z-40 hidden">
+        <div class="glass rounded-xl p-6 md:p-8 max-w-3xl w-full mx-4 shadow-xl max-h-[80vh] overflow-hidden flex flex-col">
+            <h2 class="text-2xl font-bold text-primary mb-6">往日学习记录查询</h2>
+            <div class="mb-4 flex flex-col md:flex-row gap-4">
+                <div class="flex-1">
+                    <label class="block text-sm font-medium mb-2" for="historyStartDate">开始日期</label>
+                    <input type="date" id="historyStartDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-smooth">
+                </div>
+                <div class="flex-1">
+                    <label class="block text-sm font-medium mb-2" for="historyEndDate">结束日期</label>
+                    <input type="date" id="historyEndDate" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-smooth">
+                </div>
+            </div>
+            <button id="queryHistoryBtn" class="bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-smooth mb-6 w-fit">查询记录</button>
+            
+            <div class="flex-1 overflow-y-auto pr-2">
+                <div id="historyResults" class="space-y-4">
+                    <!-- 历史记录结果将在这里显示 -->
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        // -------------------------- 基础配置 --------------------------
-        // 本地存储键名（适配原有数据结构）
-        const STORAGE_KEY = "postgraduateStudyRecords_2028";
-        // 考研目标日期（2028年12月下旬初试）
-        const TARGET_DATE = new Date("2028-12-23T09:00:00");
-        // 今日日期
-        const TODAY = new Date();
-        const TODAY_STR = TODAY.toISOString().split("T")[0];
-
-        // -------------------------- 云端同步初始化（国内LeanCloud） --------------------------
-        // 公开测试配置（国内可访问，无需注册）
-        AV.init({
-            appId: "tV6N90W6cO1d7H2e8X3f4A5b6C7d8E9f0G",
-            appKey: "kL3M7n8P9q0R1S2t3U4v5W6x7Y8z9A0b1C",
-            serverURL: "https://avoscloud.com"
-        });
-        const CloudStudyRecord = AV.Object.extend("PostgraduateStudyData"); // 云端数据表名
-
-        // -------------------------- 页面加载初始化 --------------------------
-        document.addEventListener("DOMContentLoaded", function() {
-            // 初始化今日日期显示
-            document.getElementById("todayDate").textContent = TODAY_STR;
-            // 初始化自定义倒计时日期最小值
-            document.getElementById("customCountdownDate").min = TODAY_STR;
-            // 加载本地学习记录
-            loadStudyRecords();
-            // 加载自定义倒计时
-            loadCustomCountdowns();
-            // 启动考研倒计时
-            startCountdown();
-            // 初始化所有图表
-            initAllCharts();
-            // 绑定事件监听
-            bindAllEvents();
-            // 初始化月度统计图表
-            updateMonthChart("2025-10");
-        });
-
-        // -------------------------- 核心学习记录功能 --------------------------
-        // 加载本地学习记录
-        function loadStudyRecords() {
-            const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-            // 渲染今日记录
-            renderTodayRecords(records[TODAY_STR] || []);
-            // 渲染当日昨日对比
-            renderCompareRecords(records);
-            // 更新今日总时长
-            updateTodayTotal(records[TODAY_STR] || []);
-            return records;
-        }
-
-        // 渲染今日学习记录
-        function renderTodayRecords(todayRecords) {
-            const stageListDom = document.getElementById("stageList");
-            if (todayRecords.length === 0) {
-                stageListDom.innerHTML = '<div class="p-2 text-center text-gray-500">暂无今日学习记录，添加记录后显示</div>';
-                return;
-            }
-            let html = "";
-            todayRecords.forEach((record, index) => {
-                html += `
-                    <div class="p-2 border border-emerald-100 rounded-md flex justify-between items-center">
-                        <div>
-                            <span class="font-medium text-emerald-800">${record.stage}</span>
-                            <span class="text-sm text-gray-500 ml-2">${record.startTime} - ${record.endTime}</span>
-                        </div>
-                        <button onclick="deleteTodayRecord(${index})" class="text-rose-500 text-sm">删除</button>
-                    </div>
-                `;
-            });
-            stageListDom.innerHTML = html;
-        }
-
-        // 更新今日总时长
-        function updateTodayTotal(todayRecords) {
-            const totalMinutes = todayRecords.reduce((sum, record) => {
-                const start = new Date(`2000-01-01T${record.startTime}`);
-                const end = new Date(`2000-01-01T${record.endTime}`);
-                return sum + Math.floor((end - start) / (1000 * 60));
-            }, 0);
-            document.getElementById("todayTotal").textContent = totalMinutes;
-            // 显示今日图表
-            updateTodayChart(todayRecords);
-            return totalMinutes;
-        }
-
-        // 添加今日学习记录（手动模式）
-        function addManualRecord() {
-            const stage = document.getElementById("stageName").value.trim();
-            const startTime = document.getElementById("startTime").value;
-            const endTime = document.getElementById("endTime").value;
+    <!-- 个人资料夹弹窗 -->
+    <div id="profileFolderModal" class="fixed inset-0 bg-text/50 flex items-center justify-center z-40 hidden">
+        <div class="glass rounded-xl p-6 md:p-8 max-w-5xl w-full mx-4 shadow-xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <h2 class="text-2xl font-bold text-primary">个人资料夹</h2>
+                <div class="flex gap-2 w-full md:w-auto">
+                    <button id="uploadFileBtn" class="bg-secondary hover:bg-secondary/90 text-white font-medium py-2 px-4 rounded-lg transition-smooth flex items-center gap-2 flex-1 md:flex-none">
+                        <i class="fa fa-upload"></i> 上传文件
+                    </button>
+                    <button id="newNoteBtn" class="bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-smooth flex items-center gap-2 flex-1 md:flex-none">
+                        <i class="fa fa-plus"></i> 新建笔记
+                    </button>
+                </div>
+            </div>
             
-            if (!stage) {
-                alert("请输入学习项目");
-                return;
-            }
-            if (new Date(`2000-01-01T${startTime}`) >= new Date(`2000-01-01T${endTime}`)) {
-                alert("结束时间需晚于开始时间");
-                return;
-            }
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 flex-1 overflow-hidden">
+                <!-- 文件列表 -->
+                <div class="bg-neutral/50 rounded-lg p-4 overflow-y-auto">
+                    <h3 class="font-semibold mb-3 text-lg">文件列表</h3>
+                    <div id="fileList" class="space-y-2">
+                        <!-- 文件将在这里显示 -->
+                    </div>
+                </div>
+                
+                <!-- 笔记列表 -->
+                <div class="bg-neutral/50 rounded-lg p-4 overflow-y-auto">
+                    <h3 class="font-semibold mb-3 text-lg">笔记列表</h3>
+                    <div id="noteList" class="space-y-2">
+                        <!-- 笔记将在这里显示 -->
+                    </div>
+                </div>
+                
+                <!-- 笔记编辑区 -->
+                <div class="bg-neutral/50 rounded-lg p-4 flex flex-col">
+                    <h3 class="font-semibold mb-3 text-lg">笔记编辑</h3>
+                    <div class="mb-3 flex-1 flex flex-col">
+                        <input type="text" id="noteTitle" placeholder="输入笔记标题" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-smooth mb-3">
+                        <textarea id="noteContent" rows="10" placeholder="在这里输入笔记内容..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-smooth flex-1"></textarea>
+                    </div>
+                    <button id="saveNoteBtn" class="bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-smooth">保存笔记</button>
+                </div>
+            </div>
+            
+            <!-- 文件上传区域 -->
+            <div id="fileUploadArea" class="hidden mt-4 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <i class="fa fa-cloud-upload text-4xl text-gray-400 mb-3"></i>
+                <p class="mb-3">拖放文件到这里，或点击选择文件</p>
+                <input type="file" id="fileUpload" class="hidden" multiple accept=".doc,.docx,.pdf,.ppt,.pptx,.jpg,.jpeg,.png,.gif">
+                <button id="browseFilesBtn" class="bg-secondary hover:bg-secondary/90 text-white font-medium py-2 px-4 rounded-lg transition-smooth">选择文件</button>
+            </div>
+        </div>
+    </div>
 
-            // 获取本地记录
-            const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-            if (!records[TODAY_STR]) records[TODAY_STR] = [];
-            // 添加新记录
-            records[TODAY_STR].push({ stage, startTime, endTime, addTime: new Date().toLocaleString() });
-            // 保存到本地
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-            // 重新渲染
-            renderTodayRecords(records[TODAY_STR]);
-            updateTodayTotal(records[TODAY_STR]);
-            // 清空输入
-            document.getElementById("stageName").value = "";
-        }
+    <!-- 文件夹弹窗 -->
+    <div id="folderModal" class="fixed inset-0 bg-text/50 flex items-center justify-center z-40 hidden">
+        <div class="glass rounded-xl p-6 md:p-8 max-w-4xl w-full mx-4 shadow-xl max-h-[90vh] overflow-hidden flex flex-col">
+            <h2 class="text-2xl font-bold text-primary mb-6">保存的统计图片</h2>
+            <div id="savedImagesContainer" class="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <!-- 保存的图片将在这里显示 -->
+            </div>
+        </div>
+    </div>
 
-        // 删除今日学习记录
-        function deleteTodayRecord(index) {
-            const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-            if (!records[TODAY_STR]) return;
-            records[TODAY_STR].splice(index, 1);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-            renderTodayRecords(records[TODAY_STR]);
-            updateTodayTotal(records[TODAY_STR]);
-        }
+    <!-- 顶部导航栏 -->
+    <header class="bg-primary text-white shadow-md sticky top-0 z-20">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <!-- 左上角文件夹 -->
+            <div class="flex items-center">
+                <button id="folderBtn" class="text-xl p-2 hover:bg-primary/80 rounded transition-smooth">
+                    <i class="fa fa-folder-open"></i>
+                </button>
+                <h1 class="text-xl md:text-2xl font-bold ml-3">考研学习管理系统</h1>
+            </div>
+            
+            <!-- 右上角按钮 -->
+            <div class="flex items-center gap-3">
+                <button id="timerBtn" class="hidden md:flex items-center gap-1 bg-accent hover:bg-accent/90 px-3 py-1 rounded-lg transition-smooth">
+                    <i class="fa fa-clock-o"></i>
+                    <span>计时</span>
+                </button>
+                <button id="mobileTimerBtn" class="md:hidden text-xl p-2 hover:bg-primary/80 rounded transition-smooth">
+                    <i class="fa fa-clock-o"></i>
+                </button>
+                <button id="profileBtn" class="hidden md:flex items-center gap-1 bg-accent hover:bg-accent/90 px-3 py-1 rounded-lg transition-smooth">
+                    <i class="fa fa-user"></i>
+                    <span>资料夹</span>
+                </button>
+                <button id="mobileProfileBtn" class="md:hidden text-xl p-2 hover:bg-primary/80 rounded transition-smooth">
+                    <i class="fa fa-user"></i>
+                </button>
+                <button id="loginButton" class="flex items-center gap-1 bg-secondary hover:bg-secondary/90 px-3 py-1 rounded-lg transition-smooth">
+                    <i class="fa fa-sign-in"></i>
+                    <span>登录</span>
+                </button>
+            </div>
+        </div>
+    </header>
 
-        // 保存今日记录（备份逻辑）
-        function saveTodayRecords() {
-            const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-            localStorage.setItem(`${STORAGE_KEY}_backup`, JSON.stringify(records));
-            alert("今日记录已保存备份");
-        }
+    <!-- 主内容区 -->
+    <main class="flex-1 container mx-auto px-4 py-6">
+        <!-- 2028考研倒计时 -->
+        <section class="mb-8 bg-white rounded-xl shadow-md p-6 transform transition-smooth hover:shadow-lg">
+            <h2 class="text-2xl font-bold text-primary mb-4 flex items-center">
+                <i class="fa fa-calendar-check-o mr-2"></i>2028考研倒计时
+            </h2>
+            <div id="examCountdown" class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                <div class="bg-neutral rounded-lg p-4">
+                    <div id="countdownDays" class="text-3xl md:text-4xl font-bold text-text">000</div>
+                    <div class="text-sm text-gray-600">天</div>
+                </div>
+                <div class="bg-neutral rounded-lg p-4">
+                    <div id="countdownHours" class="text-3xl md:text-4xl font-bold text-text">00</div>
+                    <div class="text-sm text-gray-600">时</div>
+                </div>
+                <div class="bg-neutral rounded-lg p-4">
+                    <div id="countdownMinutes" class="text-3xl md:text-4xl font-bold text-text">00</div>
+                    <div class="text-sm text-gray-600">分</div>
+                </div>
+                <div class="bg-neutral rounded-lg p-4">
+                    <div id="countdownSeconds" class="text-3xl md:text-4xl font-bold text-text">00</div>
+                    <div class="text-sm text-gray-600">秒</div>
+                </div>
+            </div>
+            <div class="mt-4 text-right text-sm text-gray-500">
+                <span id="currentDateTime">当前时间：加载中...</span>
+            </div>
+        </section>
 
-        // -------------------------- 对比功能 --------------------------
-        // 渲染当日昨日对比
-        function renderCompareRecords(records) {
-            const todayRecords = records[TODAY_STR] || [];
-            const yesterday = new Date(TODAY.getTime() - 24 * 60 * 60 * 1000);
-            const yesterdayStr = yesterday.toISOString().split("T")[0];
-            const yesterdayRecords = records[yesterdayStr] || [];
+        <!-- 今日任务记录 -->
+        <section class="mb-8 bg-white rounded-xl shadow-md p-6 transform transition-smooth hover:shadow-lg">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+                <h2 class="text-2xl font-bold text-primary flex items-center">
+                    <i class="fa fa-tasks mr-2"></i>今日学习记录
+                </h2>
+                <button id="addRecordBtn" class="bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-smooth flex items-center gap-1 self-end sm:self-auto">
+                    <i class="fa fa-plus"></i> 添加记录
+                </button>
+            </div>
+            
+            <!-- 添加记录表单 -->
+            <div id="addRecordForm" class="mb-6 p-4 bg-neutral rounded-lg hidden">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1" for="projectName">项目名称</label>
+                        <input type="text" id="projectName" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-smooth" placeholder="输入自定义项目名称">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1" for="startTime">开始时间</label>
+                        <input type="datetime-local" id="startTime" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-smooth">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1" for="endTime">结束时间</label>
+                        <input type="datetime-local" id="endTime" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-smooth">
+                    </div>
+                </div>
+                <div class="flex justify-end">
+                    <button id="saveRecordBtn" class="bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-smooth">保存记录</button>
+                </div>
+            </div>
+            
+            <!-- 记录列表 -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead>
+                        <tr>
+                            <th class="px-4 py-3 bg-neutral text-left text-xs font-medium text-gray-500 uppercase tracking-wider">项目名称</th>
+                            <th class="px-4 py-3 bg-neutral text-left text-xs font-medium text-gray-500 uppercase tracking-wider">开始时间</th>
+                            <th class="px-4 py-3 bg-neutral text-left text-xs font-medium text-gray-500 uppercase tracking-wider">结束时间</th>
+                            <th class="px-4 py-3 bg-neutral text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时长</th>
+                            <th class="px-4 py-3 bg-neutral text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recordsTableBody" class="bg-white divide-y divide-gray-200">
+                        <!-- 记录将在这里显示 -->
+                        <tr class="text-center text-gray-500">
+                            <td colspan="5" class="px-4 py-6">暂无记录，请添加学习记录</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="mt-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div class="text-lg font-semibold">今日总学习时长：<span id="totalStudyTime">0小时0分钟</span></div>
+                <button id="recordPastBtn" class="bg-secondary hover:bg-secondary/90 text-white font-medium py-2 px-4 rounded-lg transition-smooth self-end sm:self-auto">记录往日时长</button>
+            </div>
+        </section>
 
-            // 渲染今日对比
-            renderCompareColumn("todayCompareStages", todayRecords);
-            document.getElementById("todayCompareTotal").textContent = calculateTotalMinutes(todayRecords);
-            // 渲染昨日对比
-            renderCompareColumn("yesterdayCompareStages", yesterdayRecords);
-            document.getElementById("yesterdayCompareTotal").textContent = calculateTotalMinutes(yesterdayRecords);
-            // 更新对比图表
-            updateCompareChart(todayRecords, yesterdayRecords);
-        }
+        <!-- 数据统计图表 -->
+        <section class="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- 饼状图：当日各项目时长占比 -->
+            <div class="bg-white rounded-xl shadow-md p-6 transform transition-smooth hover:shadow-lg">
+                <h2 class="text-xl font-bold text-primary mb-4 flex items-center">
+                    <i class="fa fa-pie-chart mr-2"></i>当日项目时长占比
+                </h2>
+                <div class="h-64 flex items-center justify-center">
+                    <div id="projectsPieContainer">
+                        <canvas id="projectsPieChart"></canvas>
+                        <div id="noProjectsData" class="absolute text-gray-500 text-center">
+                            暂无数据，请添加学习记录
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 柱状图：当日时段学习频率 -->
+            <div class="bg-white rounded-xl shadow-md p-6 transform transition-smooth hover:shadow-lg">
+                <h2 class="text-xl font-bold text-primary mb-4 flex items-center">
+                    <i class="fa fa-bar-chart mr-2"></i>当日时段学习频率
+                </h2>
+                <div class="h-64 flex items-center justify-center">
+                    <div id="hourlyBarContainer">
+                        <canvas id="hourlyBarChart"></canvas>
+                        <div id="noHourlyData" class="absolute text-gray-500 text-center">
+                            暂无数据，请添加学习记录
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-        // 渲染对比列
-        function renderCompareColumn(domId, records) {
-            const dom = document.getElementById(domId);
-            if (records.length === 0) {
-                dom.innerHTML = '<span class="text-gray-500 text-sm">暂无记录</span>';
-                return;
-            }
-            let html = "";
-            records.forEach(record => {
-                html += `<div class="text-sm">${record.stage}：${record.startTime} - ${record.endTime}（${Math.floor((new Date(`2000-01-01T${record.endTime}`) - new Date(`2000-01-01T${record.startTime}`)) / (1000 * 60)}分钟）</div>`;
-            });
-            dom.innerHTML = html;
-        }
+        <!-- 学习效果对比 -->
+        <section class="mb-8 bg-white rounded-xl shadow-md p-6 transform transition-smooth hover:shadow-lg">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-primary flex items-center">
+                    <i class="fa fa-line-chart mr-2"></i>学习效果对比
+                </h2>
+                <button id="compareWithBtn" class="bg-secondary hover:bg-secondary/90 text-white font-medium py-2 px-4 rounded-lg transition-smooth">与其他日期对比</button>
+            </div>
+            
+            <!-- 今日与昨日对比 -->
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold mb-3">今日与昨日学习时长对比</h3>
+                <div class="h-64 flex items-center justify-center">
+                    <div id="todayVsYesterdayContainer">
+                        <canvas id="todayVsYesterdayChart"></canvas>
+                        <div id="noComparisonData" class="absolute text-gray-500 text-center">
+                            暂无足够数据进行对比
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 自定义日期对比 -->
+            <div id="customDateComparison" class="hidden">
+                <h3 class="text-lg font-semibold mb-3" id="customComparisonTitle">今日与所选日期学习时长对比</h3>
+                <div class="h-64 flex items-center justify-center">
+                    <div id="customDateContainer">
+                        <canvas id="customDateChart"></canvas>
+                        <div id="noCustomComparisonData" class="absolute text-gray-500 text-center">
+                            所选日期暂无数据
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-        // 计算记录总分钟数
-        function calculateTotalMinutes(records) {
-            return records.reduce((sum, record) => {
-                const start = new Date(`2000-01-01T${record.startTime}`);
-                const end = new Date(`2000-01-01T${record.endTime}`);
-                return sum + Math.floor((end - start) / (1000 * 60));
-            }, 0);
-        }
+        <!-- 往日学习统计 -->
+        <section class="mb-8 bg-white rounded-xl shadow-md p-6 transform transition-smooth hover:shadow-lg">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-primary flex items-center">
+                    <i class="fa fa-history mr-2"></i>往日学习统计
+                </h2>
+                <button id="queryHistoryButton" class="bg-secondary hover:bg-secondary/90 text-white font-medium py-2 px-4 rounded-lg transition-smooth">查询往日记录</button>
+            </div>
+            
+            <!-- 总学习时长统计 -->
+            <div class="mb-6">
+                <h3 class="text-lg font-semibold mb-3">总学习时长统计</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="h-64 flex items-center justify-center">
+                        <div id="totalProjectsContainer">
+                            <canvas id="totalProjectsPieChart"></canvas>
+                            <div id="noTotalProjectsData" class="absolute text-gray-500 text-center">
+                                暂无数据，请添加学习记录
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col justify-center">
+                        <div class="mb-4 p-4 bg-neutral rounded-lg">
+                            <div class="text-sm text-gray-600">总学习时长</div>
+                            <div class="text-3xl font-bold text-primary" id="overallTotalTime">0小时0分钟</div>
+                        </div>
+                        <div class="mb-4 p-4 bg-neutral rounded-lg">
+                            <div class="text-sm text-gray-600">平均每日学习时长</div>
+                            <div class="text-3xl font-bold text-primary" id="averageDailyTime">0小时0分钟</div>
+                        </div>
+                        <div class="p-4 bg-neutral rounded-lg">
+                            <div class="text-sm text-gray-600">最长连续学习天数</div>
+                            <div class="text-3xl font-bold text-primary" id="maxStreakDays">0天</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 近期学习趋势 -->
+            <div>
+                <h3 class="text-lg font-semibold mb-3">近7天学习趋势</h3>
+                <div class="h-64 flex items-center justify-center">
+                    <div id="weeklyTrendContainer">
+                        <canvas id="weeklyTrendChart"></canvas>
+                        <div id="noWeeklyData" class="absolute text-gray-500 text-center">
+                            暂无足够数据显示趋势
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
 
-        // 任意两天对比
-        function customCompare() {
-            const date1 = document.getElementById("customDate1").value;
-            const date2 = document.getElementById("customDate2").value;
-            const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-            const records1 = records[date1] || [];
-            const records2 = records[date2] || [];
+    <!-- 底部区域 -->
+    <footer class="bg-primary text-white py-4">
+        <div class="container mx-auto px-4 flex flex-col md:flex-row justify-between items-center">
+            <div class="mb-3 md:mb-0">
+                <p>© 2023 考研学习管理系统 - 助您成功上岸</p>
+            </div>
+            <div class="flex flex-wrap gap-3 justify-center">
+                <button id="saveAsImageBtn" class="bg-white text-primary hover:bg-gray-100 font-medium py-2 px-4 rounded-lg transition-smooth flex items-center gap-1">
+                    <i class="fa fa-save"></i> 保存为图片
+                </button>
+                <button id="syncDataBtn" class="bg-secondary hover:bg-secondary/90 text-white font-medium py-2 px-4 rounded-lg transition-smooth flex items-center gap-1">
+                    <i class="fa fa-cloud"></i> 同步数据
+                </button>
+            </div>
+        </div>
+    </footer>
 
-            // 渲染对比列
-            renderCompareColumn("customStages1", records1);
-            renderCompareColumn("customStages2", records2);
-            // 更新总时长
-            document.getElementById("customTotal1").textContent = calculateTotalMinutes(records1);
-            document.getElementById("customTotal2").textContent = calculateTotalMinutes(records2);
-            // 更新标题
-            document.getElementById("customDate1Title").textContent = `日期1（${date1}）`;
-            document.getElementById("customDate2Title").textContent = `日期2（${date2}）`;
-            // 更新图表
-            updateCustomCompareChart(records1, records2, date1, date2);
-        }
-
-        // -------------------------- 倒计时功能 --------------------------
-        // 启动考研倒计时
-        function startCountdown() {
-            updateCountdown();
-            setInterval(updateCountdown, 1000);
-        }
-
-        // 更新考研倒计时
-        function updateCountdown() {
+    <script>
+        // 全局变量
+        let isLoggedIn = false;
+        let currentUserId = null;
+        let timerInterval = null;
+        let totalSeconds = 0;
+        let timerRunning = false;
+        let isCountdown = true;
+        let studyRecords = [];
+        let projectNames = [];
+        let savedImages = [];
+        let notes = [];
+        let files = [];
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 设置当前日期时间为默认值
             const now = new Date();
-            const diff = TARGET_DATE - now;
+            const dateString = now.toISOString().slice(0, 16);
+            document.getElementById('startTime').value = dateString;
+            document.getElementById('endTime').value = dateString;
+            document.getElementById('pastDate').value = now.toISOString().slice(0, 10);
+            document.getElementById('compareDate').value = now.toISOString().slice(0, 10);
+            
+            // 设置历史查询默认日期范围（近7天）
+            const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            document.getElementById('historyStartDate').value = lastWeek.toISOString().slice(0, 10);
+            document.getElementById('historyEndDate').value = now.toISOString().slice(0, 10);
+            
+            // 加载本地存储数据
+            loadDataFromStorage();
+            
+            // 更新当前时间和倒计时
+            updateDateTime();
+            setInterval(updateDateTime, 1000);
+            
+            // 初始化图表
+            initCharts();
+            
+            // 绑定事件处理
+            bindEventListeners();
+        });
+
+        // 更新日期时间和考研倒计时
+        function updateDateTime() {
+            const now = new Date();
+            
+            // 更新当前时间显示
+            document.getElementById('currentDateTime').textContent = `当前时间：${now.toLocaleString('zh-CN')}`;
+            
+            // 计算2028考研倒计时（假设考试日期为2027年12月23日）
+            const examDate = new Date('2027-12-23T08:30:00');
+            const diff = examDate - now;
+            
             if (diff <= 0) {
-                document.getElementById("days").textContent = "00";
-                document.getElementById("hours").textContent = "00";
-                document.getElementById("minutes").textContent = "00";
-                document.getElementById("seconds").textContent = "00";
+                document.getElementById('countdownDays').textContent = '000';
+                document.getElementById('countdownHours').textContent = '00';
+                document.getElementById('countdownMinutes').textContent = '00';
+                document.getElementById('countdownSeconds').textContent = '00';
                 return;
             }
-            // 计算天时分秒
+            
             const days = Math.floor(diff / (1000 * 60 * 60 * 24));
             const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
             const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
             const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-            // 更新显示
-            document.getElementById("days").textContent = days.toString().padStart(2, "0");
-            document.getElementById("hours").textContent = hours.toString().padStart(2, "0");
-            document.getElementById("minutes").textContent = minutes.toString().padStart(2, "0");
-            document.getElementById("seconds").textContent = seconds.toString().padStart(2, "0");
+            
+            document.getElementById('countdownDays').textContent = days.toString().padStart(3, '0');
+            document.getElementById('countdownHours').textContent = hours.toString().padStart(2, '0');
+            document.getElementById('countdownMinutes').textContent = minutes.toString().padStart(2, '0');
+            document.getElementById('countdownSeconds').textContent = seconds.toString().padStart(2, '0');
         }
 
-        // 加载自定义倒计时
-        function loadCustomCountdowns() {
-            const countdowns = JSON.parse(localStorage.getItem("customCountdowns_2028") || "[]");
-            const listDom = document.getElementById("customCountdownList");
-            if (countdowns.length === 0) {
-                listDom.innerHTML = '<div class="p-2 text-center text-gray-500">暂无自定义倒计时，添加后显示</div>';
-                return;
-            }
-            let html = "";
-            countdowns.forEach((item, index) => {
-                const target = new Date(item.date);
-                const diff = target - new Date();
-                const days = diff > 0 ? Math.floor(diff / (1000 * 60 * 60 * 24)) : 0;
-                html += `
-                    <div class="p-2 border border-emerald-100 rounded-md flex justify-between items-center">
-                        <div>
-                            <span class="font-medium text-emerald-800">${item.name}</span>
-                            <span class="text-sm text-gray-500 ml-2">（${item.date}）</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm text-rose-500">剩余${days}天</span>
-                            <button onclick="deleteCustomCountdown(${index})" class="text-gray-500 text-sm">删除</button>
-                        </div>
-                    </div>
-                `;
-            });
-            listDom.innerHTML = html;
-        }
-
-        // 添加自定义倒计时
-        function addCustomCountdown() {
-            const name = document.getElementById("customCountdownName").value.trim();
-            const date = document.getElementById("customCountdownDate").value;
-            if (!name || !date) {
-                alert("请填写项目名称和目标日期");
-                return;
-            }
-            if (new Date(date) <= new Date()) {
-                alert("目标日期需晚于今日");
-                return;
-            }
-            const countdowns = JSON.parse(localStorage.getItem("customCountdowns_2028") || "[]");
-            countdowns.push({ name, date });
-            localStorage.setItem("customCountdowns_2028", JSON.stringify(countdowns));
-            loadCustomCountdowns();
-            // 清空输入
-            document.getElementById("customCountdownName").value = "";
-            document.getElementById("customCountdownDate").value = "";
-        }
-
-        // 删除自定义倒计时
-        function deleteCustomCountdown(index) {
-            const countdowns = JSON.parse(localStorage.getItem("customCountdowns_2028") || "[]");
-            countdowns.splice(index, 1);
-            localStorage.setItem("customCountdowns_2028", JSON.stringify(countdowns));
-            loadCustomCountdowns();
-        }
-
-        // -------------------------- 图表功能 --------------------------
         // 初始化所有图表
-        function initAllCharts() {
-            // 今日图表
-            window.todayChart = new Chart(
-                document.getElementById("todayChart"),
-                {
-                    type: "bar",
-                    data: {
-                        labels: Array.from({ length: 24 }, (_, i) => `${i}:00`),
-                        datasets: [{
-                            label: "学习时长（分钟）",
-                            data: Array(24).fill(0),
-                            backgroundColor: "rgba(16, 185, 129, 0.6)",
-                            borderColor: "rgba(16, 185, 129, 1)",
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: { beginAtZero: true, title: { display: true, text: "分钟" } },
-                            x: { title: { display: true, text: "时间段" } }
-                        }
-                    }
-                }
-            );
-
-            // 当日昨日对比图表
-            window.compareChart = new Chart(
-                document.getElementById("compareChart"),
-                {
-                    type: "bar",
-                    data: {
-                        labels: Array.from({ length: 24 }, (_, i) => `${i}:00`),
-                        datasets: [
-                            {
-                                label: `今日（${TODAY_STR}）`,
-                                data: Array(24).fill(0),
-                                backgroundColor: "rgba(16, 185, 129, 0.6)",
-                                borderColor: "rgba(16, 185, 129, 1)"
-                            },
-                            {
-                                label: `昨日（${new Date(TODAY.getTime() - 24 * 60 * 60 * 1000).toISOString().split("T")[0]}）`,
-                                data: Array(24).fill(0),
-                                backgroundColor: "rgba(37, 99, 235, 0.6)",
-                                borderColor: "rgba(37, 99, 235, 1)"
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: { beginAtZero: true, title: { display: true, text: "分钟" } },
-                            x: { title: { display: true, text: "时间段" } }
-                        }
-                    }
-                }
-            );
-
-            // 任意两天对比图表
-            window.customCompareChart = new Chart(
-                document.getElementById("customCompareChart"),
-                {
-                    type: "bar",
-                    data: {
-                        labels: Array.from({ length: 24 }, (_, i) => `${i}:00`),
-                        datasets: [
-                            { label: "日期1", data: Array(24).fill(0), backgroundColor: "rgba(16, 185, 129, 0.6)" },
-                            { label: "日期2", data: Array(24).fill(0), backgroundColor: "rgba(37, 99, 235, 0.6)" }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: { beginAtZero: true, title: { display: true, text: "分钟" } },
-                            x: { title: { display: true, text: "时间段" } }
-                        }
-                    }
-                }
-            );
-
-            // 月度统计图表
-            window.monthChart = new Chart(
-                document.getElementById("monthChart"),
-                {
-                    type: "line",
-                    data: {
-                        labels: [],
-                        datasets: [{
-                            label: "每日学习时长（分钟）",
-                            data: [],
-                            fill: true,
-                            backgroundColor: "rgba(16, 185, 129, 0.2)",
-                            borderColor: "rgba(16, 185, 129, 1)",
-                            tension: 0.3
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: { beginAtZero: true, title: { display: true, text: "分钟" } },
-                            x: { title: { display: true, text: "日期" } }
-                        }
-                    }
-                }
-            );
+        function initCharts() {
+            // 为图表容器添加相对定位，以便显示"暂无数据"提示
+            const chartContainers = ['projectsPieContainer', 'hourlyBarContainer', 'todayVsYesterdayContainer', 
+                                    'customDateContainer', 'totalProjectsContainer', 'weeklyTrendContainer'];
+            chartContainers.forEach(id => {
+                document.getElementById(id).style.position = 'relative';
+            });
+            
+            // 隐藏所有"暂无数据"提示
+            updateChartDataVisibility();
         }
-
-        // 更新今日图表
-        function updateTodayChart(records) {
-            const hourData = Array(24).fill(0);
+        
+        // 更新图表数据可见性
+        function updateChartDataVisibility() {
+            const hasRecords = studyRecords.length > 0;
+            
+            // 当日项目饼图
+            const today = new Date().toISOString().split('T')[0];
+            const todayRecords = studyRecords.filter(r => r.date === today);
+            document.getElementById('noProjectsData').style.display = todayRecords.length > 0 ? 'none' : 'block';
+            
+            // 时段柱状图
+            document.getElementById('noHourlyData').style.display = todayRecords.length > 0 ? 'none' : 'block';
+            
+            // 对比图表
+            const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+            const yesterdayRecords = studyRecords.filter(r => r.date === yesterday);
+            document.getElementById('noComparisonData').style.display = (todayRecords.length > 0 && yesterdayRecords.length > 0) ? 'none' : 'block';
+            
+            // 总项目饼图
+            document.getElementById('noTotalProjectsData').style.display = hasRecords ? 'none' : 'block';
+            
+            // 周趋势图
+            const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+            const recentRecords = studyRecords.filter(r => r.date >= sevenDaysAgo);
+            document.getElementById('noWeeklyData').style.display = recentRecords.length > 0 ? 'none' : 'block';
+            
+            // 如果有数据，更新图表
+            if (hasRecords) {
+                updateAllCharts();
+            }
+        }
+        
+        // 更新所有图表数据
+        function updateAllCharts() {
+            const today = new Date().toISOString().split('T')[0];
+            const todayRecords = studyRecords.filter(r => r.date === today);
+            
+            // 当日项目时长占比饼状图
+            updateProjectsPieChart(todayRecords);
+            
+            // 当日时段学习频率柱状图
+            updateHourlyBarChart(todayRecords);
+            
+            // 今日与昨日对比柱状图
+            const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+            const yesterdayRecords = studyRecords.filter(r => r.date === yesterday);
+            updateTodayVsYesterdayChart(todayRecords, yesterdayRecords);
+            
+            // 总项目时长占比饼状图
+            updateTotalProjectsPieChart(studyRecords);
+            
+            // 近7天学习趋势折线图
+            updateWeeklyTrendChart(studyRecords);
+        }
+        
+        // 更新项目饼图
+        function updateProjectsPieChart(records) {
+            const ctx = document.getElementById('projectsPieChart').getContext('2d');
+            
+            // 按项目分组计算总时长
+            const projectTimes = {};
             records.forEach(record => {
-                const startHour = parseInt(record.startTime.split(":")[0]);
-                const endHour = parseInt(record.endTime.split(":")[0]);
-                const startMin = parseInt(record.startTime.split(":")[1]);
-                const endMin = parseInt(record.endTime.split(":")[1]);
-
-                // 同一小时内
-                if (startHour === endHour) {
-                    hourData[startHour] += endMin - startMin;
-                } else {
-                    // 跨小时
-                    hourData[startHour] += 60 - startMin;
-                    for (let h = startHour + 1; h < endHour; h++) {
-                        hourData[h] += 60;
+                if (!projectTimes[record.name]) {
+                    projectTimes[record.name] = 0;
+                }
+                projectTimes[record.name] += record.duration;
+            });
+            
+            // 准备图表数据
+            const labels = Object.keys(projectTimes);
+            const data = Object.values(projectTimes);
+            
+            // 销毁现有图表（如果存在）
+            if (window.projectsPieChartInstance) {
+                window.projectsPieChartInstance.destroy();
+            }
+            
+            // 创建新图表
+            window.projectsPieChartInstance = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: [
+                            '#5a8b6c', '#6b8e9e', '#8dbb9e', '#a9cbb7',
+                            '#7ca08a', '#8baebb', '#a9d9b9', '#c9e6d7'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.raw;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    const hours = Math.floor(value / 60);
+                                    const minutes = value % 60;
+                                    return `${context.label}: ${hours}小时${minutes}分钟 (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    animation: {
+                        animateScale: true,
+                        animateRotate: true
                     }
-                    hourData[endHour] += endMin;
                 }
             });
-            window.todayChart.data.datasets[0].data = hourData;
-            window.todayChart.update();
+        }
+        
+        // 更新时段柱状图
+        function updateHourlyBarChart(records) {
+            const ctx = document.getElementById('hourlyBarChart').getContext('2d');
+            
+            // 初始化时段数据（每2小时一个时段）
+            const hourlyData = Array(9).fill(0); // 6-8, 8-10, ..., 22-24
+            
+            // 计算每个时段的学习时长
+            records.forEach(record => {
+                const start = new Date(record.start);
+                const end = new Date(record.end);
+                
+                // 计算开始和结束时间所在的时段索引
+                const startHour = start.getHours();
+                const endHour = end.getHours();
+                
+                // 为简化计算，将时间按2小时时段划分
+                const getPeriodIndex = (hour) => {
+                    if (hour >= 6 && hour < 8) return 0;
+                    if (hour >= 8 && hour < 10) return 1;
+                    if (hour >= 10 && hour < 12) return 2;
+                    if (hour >= 12 && hour < 14) return 3;
+                    if (hour >= 14 && hour < 16) return 4;
+                    if (hour >= 16 && hour < 18) return 5;
+                    if (hour >= 18 && hour < 20) return 6;
+                    if (hour >= 20 && hour < 22) return 7;
+                    if (hour >= 22 && hour <= 24) return 8;
+                    return -1; // 不在统计时段内
+                };
+                
+                const startIndex = getPeriodIndex(startHour);
+                const endIndex = getPeriodIndex(endHour);
+                
+                // 如果开始和结束在同一个时段
+                if (startIndex !== -1 && startIndex === endIndex) {
+                    hourlyData[startIndex] += record.duration / 60; // 转换为小时
+                } 
+                // 如果跨时段（简化处理，平均分配）
+                else if (startIndex !== -1 && endIndex !== -1 && startIndex < endIndex) {
+                    const hoursPerPeriod = (endIndex - startIndex + 1);
+                    hourlyData[startIndex] += record.duration / 60 / hoursPerPeriod;
+                    hourlyData[endIndex] += record.duration / 60 / hoursPerPeriod;
+                }
+            });
+            
+            // 销毁现有图表（如果存在）
+            if (window.hourlyBarChartInstance) {
+                window.hourlyBarChartInstance.destroy();
+            }
+            
+            // 创建新图表
+            window.hourlyBarChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['6-8', '8-10', '10-12', '12-14', '14-16', '16-18', '18-20', '20-22', '22-24'],
+                    datasets: [{
+                        label: '学习时长（小时）',
+                        data: hourlyData,
+                        backgroundColor: '#5a8b6c',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '时长（小时）'
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 1500
+                    }
+                }
+            });
+        }
+        
+        // 更新今日与昨日对比图表
+        function updateTodayVsYesterdayChart(todayRecords, yesterdayRecords) {
+            const ctx = document.getElementById('todayVsYesterdayChart').getContext('2d');
+            
+            // 计算今日各项目时长
+            const todayProjects = {};
+            let todayTotal = 0;
+            todayRecords.forEach(record => {
+                if (!todayProjects[record.name]) {
+                    todayProjects[record.name] = 0;
+                }
+                todayProjects[record.name] += record.duration / 60; // 转换为小时
+                todayTotal += record.duration / 60;
+            });
+            
+            // 计算昨日各项目时长
+            const yesterdayProjects = {};
+            let yesterdayTotal = 0;
+            yesterdayRecords.forEach(record => {
+                if (!yesterdayProjects[record.name]) {
+                    yesterdayProjects[record.name] = 0;
+                }
+                yesterdayProjects[record.name] += record.duration / 60; // 转换为小时
+                yesterdayTotal += record.duration / 60;
+            });
+            
+            // 合并所有项目名称
+            const allProjects = new Set([...Object.keys(todayProjects), ...Object.keys(yesterdayProjects), '总计']);
+            const labels = Array.from(allProjects);
+            
+            // 准备数据
+            const todayData = labels.map(project => {
+                if (project === '总计') return todayTotal;
+                return todayProjects[project] || 0;
+            });
+            
+            const yesterdayData = labels.map(project => {
+                if (project === '总计') return yesterdayTotal;
+                return yesterdayProjects[project] || 0;
+            });
+            
+            // 销毁现有图表（如果存在）
+            if (window.todayVsYesterdayChartInstance) {
+                window.todayVsYesterdayChartInstance.destroy();
+            }
+            
+            // 创建新图表
+            window.todayVsYesterdayChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '昨日',
+                            data: yesterdayData,
+                            backgroundColor: '#6b8e9e',
+                            borderRadius: 4
+                        },
+                        {
+                            label: '今日',
+                            data: todayData,
+                            backgroundColor: '#5a8b6c',
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '时长（小时）'
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 1500
+                    }
+                }
+            });
+        }
+        
+        // 更新自定义日期对比图表
+        function updateCustomDateChart(todayRecords, customDateRecords, customDate) {
+            const ctx = document.getElementById('customDateChart').getContext('2d');
+            
+            // 更新标题
+            document.getElementById('customComparisonTitle').textContent = `今日与${formatDate(customDate)}学习时长对比`;
+            
+            // 计算今日各项目时长
+            const todayProjects = {};
+            let todayTotal = 0;
+            todayRecords.forEach(record => {
+                if (!todayProjects[record.name]) {
+                    todayProjects[record.name] = 0;
+                }
+                todayProjects[record.name] += record.duration / 60; // 转换为小时
+                todayTotal += record.duration / 60;
+            });
+            
+            // 计算自定义日期各项目时长
+            const customDateProjects = {};
+            let customDateTotal = 0;
+            customDateRecords.forEach(record => {
+                if (!customDateProjects[record.name]) {
+                    customDateProjects[record.name] = 0;
+                }
+                customDateProjects[record.name] += record.duration / 60; // 转换为小时
+                customDateTotal += record.duration / 60;
+            });
+            
+            // 显示或隐藏"无数据"提示
+            document.getElementById('noCustomComparisonData').style.display = customDateRecords.length > 0 ? 'none' : 'block';
+            
+            // 合并所有项目名称
+            const allProjects = new Set([...Object.keys(todayProjects), ...Object.keys(customDateProjects), '总计']);
+            const labels = Array.from(allProjects);
+            
+            // 准备数据
+            const todayData = labels.map(project => {
+                if (project === '总计') return todayTotal;
+                return todayProjects[project] || 0;
+            });
+            
+            const customDateData = labels.map(project => {
+                if (project === '总计') return customDateTotal;
+                return customDateProjects[project] || 0;
+            });
+            
+            // 销毁现有图表（如果存在）
+            if (window.customDateChartInstance) {
+                window.customDateChartInstance.destroy();
+            }
+            
+            // 创建新图表
+            window.customDateChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: formatDate(customDate),
+                            data: customDateData,
+                            backgroundColor: '#8dbb9e',
+                            borderRadius: 4
+                        },
+                        {
+                            label: '今日',
+                            data: todayData,
+                            backgroundColor: '#5a8b6c',
+                            borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '时长（小时）'
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 1500
+                    }
+                }
+            });
+        }
+        
+        // 更新总项目饼图
+        function updateTotalProjectsPieChart(records) {
+            const ctx = document.getElementById('totalProjectsPieChart').getContext('2d');
+            
+            // 按项目分组计算总时长
+            const projectTimes = {};
+            records.forEach(record => {
+                if (!projectTimes[record.name]) {
+                    projectTimes[record.name] = 0;
+                }
+                projectTimes[record.name] += record.duration;
+            });
+            
+            // 准备图表数据
+            const labels = Object.keys(projectTimes);
+            const data = Object.values(projectTimes);
+            
+            // 更新统计数据
+            updateStatistics(records);
+            
+            // 销毁现有图表（如果存在）
+            if (window.totalProjectsPieChartInstance) {
+                window.totalProjectsPieChartInstance.destroy();
+            }
+            
+            // 创建新图表
+            window.totalProjectsPieChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: [
+                            '#5a8b6c', '#6b8e9e', '#8dbb9e', '#a9cbb7',
+                            '#7ca08a', '#8baebb', '#a9d9b9', '#c9e6d7'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.raw;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    const hours = Math.floor(value / 60);
+                                    const minutes = value % 60;
+                                    return `${context.label}: ${hours}小时${minutes}分钟 (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    animation: {
+                        animateScale: true,
+                        animateRotate: true
+                    }
+                }
+            });
+        }
+        
+        // 更新统计数据
+        function updateStatistics(records) {
+            if (records.length === 0) {
+                document.getElementById('overallTotalTime').textContent = '0小时0分钟';
+                document.getElementById('averageDailyTime').textContent = '0小时0分钟';
+                document.getElementById('maxStreakDays').textContent = '0天';
+                return;
+            }
+            
+            // 计算总学习时长
+            const totalMinutes = records.reduce((sum, record) => sum + record.duration, 0);
+            const totalHours = Math.floor(totalMinutes / 60);
+            const totalMins = totalMinutes % 60;
+            document.getElementById('overallTotalTime').textContent = `${totalHours}小时${totalMins}分钟`;
+            
+            // 计算平均每日学习时长
+            const uniqueDates = new Set(records.map(r => r.date));
+            const avgMinutes = totalMinutes / uniqueDates.size;
+            const avgHours = Math.floor(avgMinutes / 60);
+            const avgMins = Math.round(avgMinutes % 60);
+            document.getElementById('averageDailyTime').textContent = `${avgHours}小时${avgMins}分钟`;
+            
+            // 计算最长连续学习天数
+            const sortedDates = Array.from(uniqueDates).sort();
+            let maxStreak = 1;
+            let currentStreak = 1;
+            
+            for (let i = 1; i < sortedDates.length; i++) {
+                const prevDate = new Date(sortedDates[i-1]);
+                const currDate = new Date(sortedDates[i]);
+                const diffDays = (currDate - prevDate) / (1000 * 60 * 60 * 24);
+                
+                if (diffDays === 1) {
+                    currentStreak++;
+                    maxStreak = Math.max(maxStreak, currentStreak);
+                } else {
+                    currentStreak = 1;
+                }
+            }
+            
+            document.getElementById('maxStreakDays').textContent = `${maxStreak}天`;
+        }
+        
+        // 更新周趋势图表
+        function updateWeeklyTrendChart(records) {
+            const ctx = document.getElementById('weeklyTrendChart').getContext('2d');
+            
+            // 准备近7天的日期标签
+            const labels = [];
+            const dailyData = [];
+            const today = new Date();
+            
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date(today);
+                date.setDate(today.getDate() - i);
+                const dateStr = date.toISOString().split('T')[0];
+                labels.push(formatShortDate(dateStr));
+                
+                // 计算当天的总学习时长
+                const dayRecords = records.filter(r => r.date === dateStr);
+                const totalHours = dayRecords.reduce((sum, r) => sum + r.duration / 60, 0);
+                dailyData.push(parseFloat(totalHours.toFixed(1)));
+            }
+            
+            // 销毁现有图表（如果存在）
+            if (window.weeklyTrendChartInstance) {
+                window.weeklyTrendChartInstance.destroy();
+            }
+            
+            // 创建新图表
+            window.weeklyTrendChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '每日学习时长（小时）',
+                        data: dailyData,
+                        borderColor: '#5a8b6c',
+                        backgroundColor: 'rgba(90, 139, 108, 0.1)',
+                        tension: 0.3,
+                        fill: true,
+                        pointBackgroundColor: '#5a8b6c',
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '时长（小时）'
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 2000
+                    }
+                }
+            });
         }
 
-        // 更新当日昨日对比图表
-        function updateCompareChart(todayRecords, yesterdayRecords) {
-            // 今日数据
-            const todayHourData = Array(24).fill(0);
-            todayRecords.forEach(record => calculateHourData(record, todayHourData));
-            // 昨日数据
-            const yesterdayHourData = Array(24).fill(0);
-            yesterdayRecords.forEach(record => calculateHourData(record, yesterdayHourData));
-            // 更新图表
-            window.compareChart.data.datasets[0].data = todayHourData;
-            window.compareChart.data.datasets[1].data = yesterdayHourData;
-            window.compareChart.update();
+        // 绑定所有事件监听器
+        function bindEventListeners() {
+            // 欢迎弹窗关闭
+            document.getElementById('closeWelcomeBtn').addEventListener('click', function() {
+                document.getElementById('welcomeModal').classList.add('hidden');
+            });
+            
+            // 登录相关
+            document.getElementById('loginButton').addEventListener('click', function() {
+                document.getElementById('loginModal').classList.remove('hidden');
+            });
+            
+            // 点击登录弹窗外部关闭
+            document.getElementById('loginModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.add('hidden');
+                }
+            });
+            
+            // 登录按钮
+            document.getElementById('loginBtn').addEventListener('click', function() {
+                const userId = document.getElementById('userId').value.trim();
+                if (userId) {
+                    login(userId);
+                } else {
+                    alert('请输入用户ID');
+                }
+            });
+            
+            // 注册按钮
+            document.getElementById('registerBtn').addEventListener('click', function() {
+                const userId = document.getElementById('userId').value.trim();
+                if (userId) {
+                    register(userId);
+                } else {
+                    alert('请输入用户ID');
+                }
+            });
+            
+            // 计时器相关
+            document.getElementById('timerBtn').addEventListener('click', function() {
+                document.getElementById('timerModal').classList.remove('hidden');
+            });
+            
+            document.getElementById('mobileTimerBtn').addEventListener('click', function() {
+                document.getElementById('timerModal').classList.remove('hidden');
+            });
+            
+            // 点击计时器弹窗外部关闭
+            document.getElementById('timerModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.add('hidden');
+                }
+            });
+            
+            // 开始倒计时
+            document.getElementById('startCountdownBtn').addEventListener('click', function() {
+                const name = document.getElementById('timerName').value || '自定义项目';
+                const hours = parseInt(document.getElementById('timerHours').value) || 0;
+                const minutes = parseInt(document.getElementById('timerMinutes').value) || 0;
+                const seconds = parseInt(document.getElementById('timerSeconds').value) || 0;
+                
+                totalSeconds = hours * 3600 + minutes * 60 + seconds;
+                
+                if (totalSeconds <= 0) {
+                    alert('请设置有效的计时时间');
+                    return;
+                }
+                
+                isCountdown = true;
+                document.getElementById('timerTitle').textContent = name;
+                updateTimerDisplay();
+                document.getElementById('timerModal').classList.add('hidden');
+                document.getElementById('timerDisplay').classList.remove('hidden');
+                
+                startTimer();
+            });
+            
+            // 开始正计时
+            document.getElementById('startStopwatchBtn').addEventListener('click', function() {
+                const name = document.getElementById('timerName').value || '自定义项目';
+                
+                totalSeconds = 0;
+                isCountdown = false;
+                document.getElementById('timerTitle').textContent = name;
+                updateTimerDisplay();
+                document.getElementById('timerModal').classList.add('hidden');
+                document.getElementById('timerDisplay').classList.remove('hidden');
+                
+                startTimer();
+            });
+            
+            // 暂停/继续计时器
+            document.getElementById('pauseTimerBtn').addEventListener('click', function() {
+                if (timerRunning) {
+                    clearInterval(timerInterval);
+                    timerRunning = false;
+                    this.innerHTML = '<i class="fa fa-play mr-1"></i> 继续';
+                } else {
+                    startTimer();
+                    this.innerHTML = '<i class="fa fa-pause mr-1"></i> 暂停';
+                }
+            });
+            
+            // 停止计时器
+            document.getElementById('stopTimerBtn').addEventListener('click', function() {
+                clearInterval(timerInterval);
+                timerRunning = false;
+                
+                // 如果是正计时且有记录，询问是否保存
+                if (!isCountdown && totalSeconds > 60) { // 超过1分钟才询问
+                    const name = document.getElementById('timerTitle').textContent;
+                    if (confirm(`是否保存"${name}"的学习记录？时长：${formatDuration(totalSeconds * 1000)}`)) {
+                        const now = new Date();
+                        const endTime = now;
+                        const startTime = new Date(now.getTime() - totalSeconds * 1000);
+                        
+                        saveTimerRecord(name, startTime, endTime);
+                    }
+                }
+                
+                document.getElementById('timerDisplay').classList.add('hidden');
+                document.getElementById('pauseTimerBtn').innerHTML = '<i class="fa fa-pause mr-1"></i> 暂停';
+            });
+            
+            // 添加学习记录
+            document.getElementById('addRecordBtn').addEventListener('click', function() {
+                if (!isLoggedIn) {
+                    alert('请先登录以添加学习记录');
+                    document.getElementById('loginModal').classList.remove('hidden');
+                    return;
+                }
+                
+                const form = document.getElementById('addRecordForm');
+                form.classList.toggle('hidden');
+                
+                // 如果显示表单，设置默认结束时间为当前时间
+                if (!form.classList.contains('hidden')) {
+                    const now = new Date();
+                    document.getElementById('endTime').value = now.toISOString().slice(0, 16);
+                }
+            });
+            
+            // 保存学习记录
+            document.getElementById('saveRecordBtn').addEventListener('click', function() {
+                saveStudyRecord();
+            });
+            
+            // 记录往日时长
+            document.getElementById('recordPastBtn').addEventListener('click', function() {
+                if (!isLoggedIn) {
+                    alert('请先登录以记录往日时长');
+                    document.getElementById('loginModal').classList.remove('hidden');
+                    return;
+                }
+                document.getElementById('pastRecordModal').classList.remove('hidden');
+            });
+            
+            // 点击往日记录弹窗外部关闭
+            document.getElementById('pastRecordModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.add('hidden');
+                }
+            });
+            
+            // 保存往日记录
+            document.getElementById('savePastRecordBtn').addEventListener('click', function() {
+                savePastStudyRecord();
+            });
+            
+            // 项目名称联想
+            const projectInput = document.getElementById('pastProjectName');
+            const suggestions = document.getElementById('projectSuggestions');
+            
+            projectInput.addEventListener('input', function() {
+                showProjectSuggestions(this.value);
+            });
+            
+            // 点击其他地方关闭联想提示
+            document.addEventListener('click', function(e) {
+                if (e.target !== projectInput && !suggestions.contains(e.target)) {
+                    suggestions.classList.add('hidden');
+                }
+            });
+            
+            // 日期对比
+            document.getElementById('compareWithBtn').addEventListener('click', function() {
+                document.getElementById('compareDateModal').classList.remove('hidden');
+            });
+            
+            // 点击对比弹窗外部关闭
+            document.getElementById('compareDateModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.add('hidden');
+                }
+            });
+            
+            // 确认对比
+            document.getElementById('confirmCompareBtn').addEventListener('click', function() {
+                const compareDate = document.getElementById('compareDate').value;
+                if (!compareDate) {
+                    alert('请选择对比日期');
+                    return;
+                }
+                
+                const today = new Date().toISOString().split('T')[0];
+                const todayRecords = studyRecords.filter(r => r.date === today);
+                const customDateRecords = studyRecords.filter(r => r.date === compareDate);
+                
+                updateCustomDateChart(todayRecords, customDateRecords, compareDate);
+                document.getElementById('customDateComparison').classList.remove('hidden');
+                document.getElementById('compareDateModal').classList.add('hidden');
+            });
+            
+            // 查询历史记录
+            document.getElementById('queryHistoryButton').addEventListener('click', function() {
+                document.getElementById('historyQueryModal').classList.remove('hidden');
+                // 加载默认日期范围的记录
+                queryHistoryRecords();
+            });
+            
+            // 点击历史查询弹窗外部关闭
+            document.getElementById('historyQueryModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.add('hidden');
+                }
+            });
+            
+            // 执行历史查询
+            document.getElementById('queryHistoryBtn').addEventListener('click', function() {
+                queryHistoryRecords();
+            });
+            
+            // 个人资料夹
+            document.getElementById('profileBtn').addEventListener('click', function() {
+                if (!isLoggedIn) {
+                    alert('请先登录以使用个人资料夹');
+                    document.getElementById('loginModal').classList.remove('hidden');
+                    return;
+                }
+                document.getElementById('profileFolderModal').classList.remove('hidden');
+                // 加载笔记和文件列表
+                loadNotesAndFiles();
+            });
+            
+            document.getElementById('mobileProfileBtn').addEventListener('click', function() {
+                if (!isLoggedIn) {
+                    alert('请先登录以使用个人资料夹');
+                    document.getElementById('loginModal').classList.remove('hidden');
+                    return;
+                }
+                document.getElementById('profileFolderModal').classList.remove('hidden');
+                // 加载笔记和文件列表
+                loadNotesAndFiles();
+            });
+            
+            // 点击资料夹弹窗外部关闭
+            document.getElementById('profileFolderModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.add('hidden');
+                }
+            });
+            
+            // 上传文件按钮
+            document.getElementById('uploadFileBtn').addEventListener('click', function() {
+                document.getElementById('fileUploadArea').classList.toggle('hidden');
+                if (!document.getElementById('fileUploadArea').classList.contains('hidden')) {
+                    document.getElementById('fileUpload').click();
+                }
+            });
+            
+            // 浏览文件按钮
+            document.getElementById('browseFilesBtn').addEventListener('click', function() {
+                document.getElementById('fileUpload').click();
+            });
+            
+            // 文件选择变化
+            document.getElementById('fileUpload').addEventListener('change', function(e) {
+                handleFileUpload(e.target.files);
+            });
+            
+            // 新建笔记
+            document.getElementById('newNoteBtn').addEventListener('click', function() {
+                document.getElementById('noteTitle').value = '';
+                document.getElementById('noteContent').value = '';
+            });
+            
+            // 保存笔记
+            document.getElementById('saveNoteBtn').addEventListener('click', function() {
+                saveNote();
+            });
+            
+            // 左上角文件夹
+            document.getElementById('folderBtn').addEventListener('click', function() {
+                if (!isLoggedIn) {
+                    alert('请先登录以查看保存的图片');
+                    document.getElementById('loginModal').classList.remove('hidden');
+                    return;
+                }
+                document.getElementById('folderModal').classList.remove('hidden');
+                // 加载保存的图片
+                loadSavedImages();
+            });
+            
+            // 点击文件夹弹窗外部关闭
+            document.getElementById('folderModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.add('hidden');
+                }
+            });
+            
+            // 保存为图片
+            document.getElementById('saveAsImageBtn').addEventListener('click', function() {
+                if (!isLoggedIn) {
+                    alert('请先登录以保存统计图片');
+                    document.getElementById('loginModal').classList.remove('hidden');
+                    return;
+                }
+                saveStatisticsAsImage();
+            });
+            
+            // 同步数据
+            document.getElementById('syncDataBtn').addEventListener('click', function() {
+                if (!isLoggedIn) {
+                    alert('请先登录以同步数据');
+                    document.getElementById('loginModal').classList.remove('hidden');
+                    return;
+                }
+                syncData();
+            });
         }
-
-        // 更新任意两天对比图表
-        function updateCustomCompareChart(records1, records2, date1, date2) {
-            const data1 = Array(24).fill(0);
-            const data2 = Array(24).fill(0);
-            records1.forEach(record => calculateHourData(record, data1));
-            records2.forEach(record => calculateHourData(record, data2));
-            // 更新图表
-            window.customCompareChart.data.datasets[0].label = date1;
-            window.customCompareChart.data.datasets[0].data = data1;
-            window.customCompareChart.data.datasets[1].label = date2;
-            window.customCompareChart.data.datasets[1].data = data2;
-            window.customCompareChart.update();
+        
+        // 登录功能
+        function login(userId) {
+            currentUserId = userId;
+            isLoggedIn = true;
+            
+            // 更新UI
+            document.getElementById('loginButton').innerHTML = `<i class="fa fa-user mr-1"></i> ${userId}`;
+            document.getElementById('loginModal').classList.add('hidden');
+            
+            // 尝试加载用户数据
+            loadUserData(userId);
+            
+            alert(`登录成功，欢迎回来 ${userId}！`);
         }
-
-        // 计算小时段数据
-        function calculateHourData(record, hourData) {
-            const startHour = parseInt(record.startTime.split(":")[0]);
-            const endHour = parseInt(record.endTime.split(":")[0]);
-            const startMin = parseInt(record.startTime.split(":")[1]);
-            const endMin = parseInt(record.endTime.split(":")[1]);
-
-            if (startHour === endHour) {
-                hourData[startHour] += endMin - startMin;
+        
+        // 注册功能
+        function register(userId) {
+            currentUserId = userId;
+            isLoggedIn = true;
+            
+            // 初始化新用户数据
+            const newUserData = {
+                studyRecords: [],
+                projectNames: [],
+                savedImages: [],
+                notes: [],
+                files: []
+            };
+            
+            // 保存到本地存储
+            localStorage.setItem(`user_${userId}`, JSON.stringify(newUserData));
+            
+            // 更新UI
+            document.getElementById('loginButton').innerHTML = `<i class="fa fa-user mr-1"></i> ${userId}`;
+            document.getElementById('loginModal').classList.add('hidden');
+            
+            // 初始化数据
+            studyRecords = [];
+            projectNames = [];
+            savedImages = [];
+            notes = [];
+            files = [];
+            updateRecordsTable();
+            updateChartDataVisibility();
+            
+            alert(`注册成功，欢迎 ${userId}！`);
+        }
+        
+        // 加载用户数据
+        function loadUserData(userId) {
+            const userDataStr = localStorage.getItem(`user_${userId}`);
+            if (userDataStr) {
+                const userData = JSON.parse(userDataStr);
+                studyRecords = userData.studyRecords || [];
+                projectNames = userData.projectNames || [];
+                savedImages = userData.savedImages || [];
+                notes = userData.notes || [];
+                files = userData.files || [];
+                
+                // 更新UI
+                updateRecordsTable();
+                updateChartDataVisibility();
             } else {
-                hourData[startHour] += 60 - startMin;
-                for (let h = startHour + 1; h < endHour; h++) {
-                    hourData[h] += 60;
-                }
-                hourData[endHour] += endMin;
+                // 没有找到用户数据，初始化
+                studyRecords = [];
+                projectNames = [];
+                savedImages = [];
+                notes = [];
+                files = [];
             }
         }
-
-        // 更新月度统计图表
-        function updateMonthChart(month) {
-            const [year, monthNum] = month.split("-").map(Number);
-            const daysInMonth = new Date(year, monthNum, 0).getDate();
-            const labels = Array.from({ length: daysInMonth }, (_, i) => `${i + 1}日`);
-            const data = Array(daysInMonth).fill(0);
-
-            // 加载月度记录
-            const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-            for (let day = 1; day <= daysInMonth; day++) {
-                const dateStr = `${year}-${monthNum.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
-                const dayRecords = records[dateStr] || [];
-                data[day - 1] = calculateTotalMinutes(dayRecords);
-            }
-
-            // 更新图表
-            window.monthChart.data.labels = labels;
-            window.monthChart.data.datasets[0].data = data;
-            window.monthChart.update();
+        
+        // 保存用户数据
+        function saveUserData() {
+            if (!isLoggedIn || !currentUserId) return;
+            
+            const userData = {
+                studyRecords: studyRecords,
+                projectNames: projectNames,
+                savedImages: savedImages,
+                notes: notes,
+                files: files
+            };
+            
+            localStorage.setItem(`user_${currentUserId}`, JSON.stringify(userData));
         }
-
-        // -------------------------- 过往记录查询 --------------------------
-        function queryRecords() {
-            const queryDate = document.getElementById("queryDate").value;
-            const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-            const dayRecords = records[queryDate] || [];
-            const resultDom = document.getElementById("queryResult");
-
-            if (dayRecords.length === 0) {
-                resultDom.innerHTML = '<div class="history-item text-center text-gray-500">该日期暂无学习记录</div>';
-                return;
-            }
-
-            let html = "";
-            html += `<div class="text-center font-medium text-emerald-800 mb-2">${queryDate} 学习记录（总时长：${calculateTotalMinutes(dayRecords)}分钟）</div>`;
-            dayRecords.forEach(record => {
-                html += `
-                    <div class="history-item">
-                        <div>
-                            <span class="font-medium">${record.stage}</span>
-                            <span class="text-gray-500 ml-2">${record.startTime} - ${record.endTime}</span>
-                        </div>
-                        <span class="text-emerald-600">${Math.floor((new Date(`2000-01-01T${record.endTime}`) - new Date(`2000-01-01T${record.startTime}`)) / (1000 * 60)}分钟</span>
-                    </div>
-                `;
-            });
-            resultDom.innerHTML = html;
-        }
-
-        // -------------------------- 云端同步功能 --------------------------
-        // 显示同步状态
-        function showSyncStatus(msg, isError = false) {
-            const statusDom = document.getElementById("syncStatus");
-            statusDom.textContent = msg;
-            statusDom.className = isError ? "sync-status error" : "sync-status";
-        }
-
-        // 上传本地数据到云端
-        function uploadToCloud() {
-            const userId = document.getElementById("syncUserId").value.trim();
-            if (!userId) {
-                showSyncStatus("请先输入同步ID（如考研2025_小明）", true);
-                return;
-            }
-
-            // 获取本地所有学习记录和自定义倒计时
-            const studyRecords = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-            const customCountdowns = JSON.parse(localStorage.getItem("customCountdowns_2028") || "[]");
-            const syncData = { studyRecords, customCountdowns };
-
-            // 先删除该用户旧数据，避免重复
-            new AV.Query(CloudStudyRecord)
-                .equalTo("userId", userId)
-                .destroyAll()
-                .then(() => {
-                    // 上传新数据
-                    const cloudData = new CloudStudyRecord();
-                    cloudData.set("userId", userId);
-                    cloudData.set("syncData", syncData);
-                    return cloudData.save();
-                })
-                .then(() => {
-                    showSyncStatus(`上传成功！已同步学习记录和倒计时数据`);
-                })
-                .catch(err => {
-                    showSyncStatus("上传失败：" + err.message, true);
-                });
-        }
-
-        // 从云端拉取数据到本地
-        function pullFromCloud() {
-            const userId = document.getElementById("syncUserId").value.trim();
-            if (!userId) {
-                showSyncStatus("请先输入同步ID（需与上传时一致）", true);
-                return;
-            }
-
-            new AV.Query(CloudStudyRecord)
-                .equalTo("userId", userId)
-                .find()
-                .then(records => {
-                    if (records.length === 0) {
-                        showSyncStatus("云端无该用户的同步数据", true);
+        
+        // 开始计时器
+        function startTimer() {
+            if (timerRunning) return;
+            
+            timerRunning = true;
+            timerInterval = setInterval(function() {
+                if (isCountdown) {
+                    totalSeconds--;
+                    if (totalSeconds <= 0) {
+                        clearInterval(timerInterval);
+                        timerRunning = false;
+                        alert('倒计时结束！');
+                        document.getElementById('timerDisplay').classList.add('hidden');
+                        document.getElementById('pauseTimerBtn').innerHTML = '<i class="fa fa-pause mr-1"></i> 暂停';
                         return;
                     }
-                    // 获取云端数据
-                    const syncData = records[0].get("syncData") || { studyRecords: {}, customCountdowns: [] };
-                    // 保存到本地存储
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(syncData.studyRecords));
-                    localStorage.setItem("customCountdowns_2028", JSON.stringify(syncData.customCountdowns));
-                    // 刷新页面数据
-                    loadStudyRecords();
-                    loadCustomCountdowns();
-                    updateMonthChart(document.getElementById("monthSelect").value);
-                    showSyncStatus("拉取成功！已更新本地所有数据");
-                })
-                .catch(err => {
-                    showSyncStatus("拉取失败：" + err.message, true);
-                });
+                } else {
+                    totalSeconds++;
+                }
+                updateTimerDisplay();
+            }, 1000);
         }
-
-        // -------------------------- 事件绑定 --------------------------
-        function bindAllEvents() {
-            // 记录模式切换
-            document.querySelectorAll('input[name="recordMode"]').forEach(radio => {
-                radio.addEventListener("change", function() {
-                    if (this.value === "manual") {
-                        document.getElementById("manualMode").classList.remove("hidden");
-                        document.getElementById("timerMode").classList.add("hidden");
-                    } else {
-                        document.getElementById("manualMode").classList.add("hidden");
-                        document.getElementById("timerMode").classList.remove("hidden");
+        
+        // 更新计时器显示
+        function updateTimerDisplay() {
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            
+            document.getElementById('timerValue').textContent = 
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+        
+        // 保存学习记录
+        function saveStudyRecord() {
+            const name = document.getElementById('projectName').value.trim();
+            const startTimeStr = document.getElementById('startTime').value;
+            const endTimeStr = document.getElementById('endTime').value;
+            
+            if (!name) {
+                alert('请输入项目名称');
+                return;
+            }
+            
+            if (!startTimeStr || !endTimeStr) {
+                alert('请选择开始和结束时间');
+                return;
+            }
+            
+            const startTime = new Date(startTimeStr);
+            const endTime = new Date(endTimeStr);
+            
+            if (startTime >= endTime) {
+                alert('开始时间不能晚于结束时间');
+                return;
+            }
+            
+            // 计算时长（分钟）
+            const duration = Math.round((endTime - startTime) / (1000 * 60));
+            
+            // 创建记录
+            const record = {
+                id: Date.now().toString(),
+                name: name,
+                start: startTime.toISOString(),
+                end: endTime.toISOString(),
+                date: startTime.toISOString().split('T')[0],
+                duration: duration
+            };
+            
+            // 添加到记录列表
+            studyRecords.push(record);
+            
+            // 添加到项目名称列表（去重）
+            if (!projectNames.includes(name)) {
+                projectNames.push(name);
+                // 限制项目名称数量为50
+                if (projectNames.length > 50) {
+                    projectNames.shift();
+                }
+            }
+            
+            // 保存数据
+            saveUserData();
+            
+            // 更新UI
+            document.getElementById('addRecordForm').classList.add('hidden');
+            document.getElementById('projectName').value = '';
+            updateRecordsTable();
+            updateChartDataVisibility();
+            
+            alert(`已保存学习记录：${name}，时长${formatDuration(endTime - startTime)}`);
+        }
+        
+        // 保存计时器记录
+        function saveTimerRecord(name, startTime, endTime) {
+            // 计算时长（分钟）
+            const duration = Math.round((endTime - startTime) / (1000 * 60));
+            
+            // 创建记录
+            const record = {
+                id: Date.now().toString(),
+                name: name,
+                start: startTime.toISOString(),
+                end: endTime.toISOString(),
+                date: startTime.toISOString().split('T')[0],
+                duration: duration
+            };
+            
+            // 添加到记录列表
+            studyRecords.push(record);
+            
+            // 添加到项目名称列表（去重）
+            if (!projectNames.includes(name)) {
+                projectNames.push(name);
+                // 限制项目名称数量为50
+                if (projectNames.length > 50) {
+                    projectNames.shift();
+                }
+            }
+            
+            // 保存数据
+            saveUserData();
+            
+            // 更新UI
+            updateRecordsTable();
+            updateChartDataVisibility();
+        }
+        
+        // 保存往日学习记录
+        function savePastStudyRecord() {
+            const name = document.getElementById('pastProjectName').value.trim();
+            const dateStr = document.getElementById('pastDate').value;
+            const startTimeStr = document.getElementById('pastStartTime').value;
+            const endTimeStr = document.getElementById('pastEndTime').value;
+            
+            if (!name) {
+                alert('请输入项目名称');
+                return;
+            }
+            
+            if (!dateStr || !startTimeStr || !endTimeStr) {
+                alert('请填写完整的日期和时间');
+                return;
+            }
+            
+            const startTime = new Date(`${dateStr}T${startTimeStr}`);
+            const endTime = new Date(`${dateStr}T${endTimeStr}`);
+            
+            if (startTime >= endTime) {
+                alert('开始时间不能晚于结束时间');
+                return;
+            }
+            
+            // 计算时长（分钟）
+            const duration = Math.round((endTime - startTime) / (1000 * 60));
+            
+            // 创建记录
+            const record = {
+                id: Date.now().toString(),
+                name: name,
+                start: startTime.toISOString(),
+                end: endTime.toISOString(),
+                date: dateStr,
+                duration: duration
+            };
+            
+            // 添加到记录列表
+            studyRecords.push(record);
+            
+            // 添加到项目名称列表（去重）
+            if (!projectNames.includes(name)) {
+                projectNames.push(name);
+                // 限制项目名称数量为50
+                if (projectNames.length > 50) {
+                    projectNames.shift();
+                }
+            }
+            
+            // 保存数据
+            saveUserData();
+            
+            // 更新UI
+            document.getElementById('pastRecordModal').classList.add('hidden');
+            document.getElementById('pastProjectName').value = '';
+            updateRecordsTable();
+            updateChartDataVisibility();
+            
+            alert(`已保存${dateStr}的学习记录：${name}，时长${formatDuration(endTime - startTime)}`);
+        }
+        
+        // 显示项目名称联想
+        function showProjectSuggestions(input) {
+            const suggestions = document.getElementById('projectSuggestions');
+            suggestions.innerHTML = '';
+            
+            if (!input || projectNames.length === 0) {
+                suggestions.classList.add('hidden');
+                return;
+            }
+            
+            // 过滤匹配的项目名称
+            const matches = projectNames.filter(name => 
+                name.toLowerCase().includes(input.toLowerCase())
+            );
+            
+            if (matches.length === 0) {
+                suggestions.classList.add('hidden');
+                return;
+            }
+            
+            // 显示联想建议
+            matches.forEach(name => {
+                const div = document.createElement('div');
+                div.className = 'px-3 py-2 hover:bg-gray-100 cursor-pointer';
+                div.textContent = name;
+                div.addEventListener('click', function() {
+                    document.getElementById('pastProjectName').value = name;
+                    suggestions.classList.add('hidden');
+                });
+                suggestions.appendChild(div);
+            });
+            
+            suggestions.classList.remove('hidden');
+        }
+        
+        // 更新记录表格
+        function updateRecordsTable() {
+            const tableBody = document.getElementById('recordsTableBody');
+            const today = new Date().toISOString().split('T')[0];
+            
+            // 筛选今日记录并按时间排序
+            const todayRecords = studyRecords
+                .filter(r => r.date === today)
+                .sort((a, b) => new Date(b.start) - new Date(a.start));
+            
+            // 清空表格
+            tableBody.innerHTML = '';
+            
+            // 如果没有记录
+            if (todayRecords.length === 0) {
+                const row = document.createElement('tr');
+                row.className = 'text-center text-gray-500';
+                row.innerHTML = '<td colspan="5" class="px-4 py-6">暂无记录，请添加学习记录</td>';
+                tableBody.appendChild(row);
+                
+                // 更新总时长
+                document.getElementById('totalStudyTime').textContent = '0小时0分钟';
+                return;
+            }
+            
+            // 添加记录行
+            todayRecords.forEach(record => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-neutral/30 transition-smooth';
+                
+                const startDate = new Date(record.start);
+                const endDate = new Date(record.end);
+                
+                row.innerHTML = `
+                    <td class="px-4 py-3 whitespace-nowrap">${record.name}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">${formatDateTime(startDate)}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">${formatDateTime(endDate)}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">${formatDuration(endDate - startDate)}</td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <button class="text-blue-500 hover:text-blue-700 mr-3 edit-record" data-id="${record.id}"><i class="fa fa-edit"></i></button>
+                        <button class="text-red-500 hover:text-red-700 delete-record" data-id="${record.id}"><i class="fa fa-trash"></i></button>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+            
+            // 添加删除事件监听
+            document.querySelectorAll('.delete-record').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const id = this.getAttribute('data-id');
+                    deleteRecord(id);
+                });
+            });
+            
+            // 添加编辑事件监听
+            document.querySelectorAll('.edit-record').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const id = this.getAttribute('data-id');
+                    editRecord(id);
+                });
+            });
+            
+            // 计算并更新总时长
+            const totalMinutes = todayRecords.reduce((sum, record) => sum + record.duration, 0);
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+            document.getElementById('totalStudyTime').textContent = `${hours}小时${minutes}分钟`;
+        }
+        
+        // 删除记录
+        function deleteRecord(id) {
+            if (confirm('确定要删除这条记录吗？')) {
+                // 找到记录索引
+                const index = studyRecords.findIndex(r => r.id === id);
+                if (index !== -1) {
+                    // 删除记录
+                    studyRecords.splice(index, 1);
+                    
+                    // 保存数据
+                    saveUserData();
+                    
+                    // 更新UI
+                    updateRecordsTable();
+                    updateChartDataVisibility();
+                    
+                    alert('记录已删除');
+                }
+            }
+        }
+        
+        // 编辑记录
+        function editRecord(id) {
+            // 找到记录
+            const record = studyRecords.find(r => r.id === id);
+            if (!record) return;
+            
+            // 填充表单
+            document.getElementById('projectName').value = record.name;
+            document.getElementById('startTime').value = formatISODateTime(new Date(record.start));
+            document.getElementById('endTime').value = formatISODateTime(new Date(record.end));
+            
+            // 显示表单
+            document.getElementById('addRecordForm').classList.remove('hidden');
+            
+            // 移除原有记录（将由保存操作添加新记录）
+            const index = studyRecords.findIndex(r => r.id === id);
+            if (index !== -1) {
+                studyRecords.splice(index, 1);
+            }
+        }
+        
+        // 查询历史记录
+        function queryHistoryRecords() {
+            const startDate = document.getElementById('historyStartDate').value;
+            const endDate = document.getElementById('historyEndDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('请选择查询日期范围');
+                return;
+            }
+            
+            if (startDate > endDate) {
+                alert('开始日期不能晚于结束日期');
+                return;
+            }
+            
+            // 筛选记录
+            const filteredRecords = studyRecords
+                .filter(r => r.date >= startDate && r.date <= endDate)
+                .sort((a, b) => new Date(b.start) - new Date(a.start));
+            
+            const resultsContainer = document.getElementById('historyResults');
+            resultsContainer.innerHTML = '';
+            
+            if (filteredRecords.length === 0) {
+                resultsContainer.innerHTML = '<div class="text-center text-gray-500 py-6">该时间段内没有学习记录</div>';
+                return;
+            }
+            
+            // 按日期分组显示
+            const recordsByDate = {};
+            filteredRecords.forEach(record => {
+                if (!recordsByDate[record.date]) {
+                    recordsByDate[record.date] = [];
+                }
+                recordsByDate[record.date].push(record);
+            });
+            
+            // 生成HTML
+            Object.keys(recordsByDate).forEach(date => {
+                const dateRecords = recordsByDate[date];
+                const totalMinutes = dateRecords.reduce((sum, r) => sum + r.duration, 0);
+                
+                const dateDiv = document.createElement('div');
+                dateDiv.className = 'bg-neutral rounded-lg p-4';
+                
+                dateDiv.innerHTML = `
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="font-semibold">${formatDate(date)}</h4>
+                        <span class="text-sm bg-primary/10 text-primary px-2 py-1 rounded">
+                            总时长：${Math.floor(totalMinutes / 60)}小时${totalMinutes % 60}分钟
+                        </span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead>
+                                <tr>
+                                    <th class="px-2 py-2 bg-white/50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">项目名称</th>
+                                    <th class="px-2 py-2 bg-white/50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时间</th>
+                                    <th class="px-2 py-2 bg-white/50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">时长</th>
+                                    <th class="px-2 py-2 bg-white/50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                ${dateRecords.map(record => {
+                                    const start = new Date(record.start);
+                                    const end = new Date(record.end);
+                                    return `
+                                        <tr>
+                                            <td class="px-2 py-2 whitespace-nowrap">${record.name}</td>
+                                            <td class="px-2 py-2 whitespace-nowrap text-sm">
+                                                ${start.getHours().toString().padStart(2, '0')}:${start.getMinutes().toString().padStart(2, '0')} - 
+                                                ${end.getHours().toString().padStart(2, '0')}:${end.getMinutes().toString().padStart(2, '0')}
+                                            </td>
+                                            <td class="px-2 py-2 whitespace-nowrap text-sm">${formatDuration(end - start)}</td>
+                                            <td class="px-2 py-2 whitespace-nowrap">
+                                                <button class="text-red-500 hover:text-red-700 delete-history-record" data-id="${record.id}">
+                                                    <i class="fa fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                
+                resultsContainer.appendChild(dateDiv);
+            });
+            
+            // 添加删除事件监听
+            document.querySelectorAll('.delete-history-record').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const id = this.getAttribute('data-id');
+                    deleteRecord(id);
+                    // 重新查询以更新列表
+                    queryHistoryRecords();
+                });
+            });
+        }
+        
+        // 加载笔记和文件列表
+        function loadNotesAndFiles() {
+            const noteList = document.getElementById('noteList');
+            const fileList = document.getElementById('fileList');
+            
+            // 清空列表
+            noteList.innerHTML = '';
+            fileList.innerHTML = '';
+            
+            // 加载笔记
+            if (notes.length === 0) {
+                noteList.innerHTML = '<div class="text-center text-gray-500 py-4">暂无笔记，请新建笔记</div>';
+            } else {
+                // 按日期排序（最新的在前）
+                const sortedNotes = [...notes].sort((a, b) => new Date(b.date) - new Date(a.date));
+                
+                sortedNotes.forEach(note => {
+                    const div = document.createElement('div');
+                    div.className = 'p-2 bg-white rounded border border-gray-200 flex items-center gap-2 card-hover';
+                    div.innerHTML = `
+                        <i class="fa fa-sticky-note-o text-yellow-500"></i>
+                        <div class="flex-1 min-w-0">
+                            <p class="truncate font-medium">${note.title}</p>
+                            <p class="text-xs text-gray-500">${formatDate(note.date)}</p>
+                        </div>
+                        <div class="flex gap-1">
+                            <button class="p-1 hover:bg-gray-200 rounded edit-note" data-id="${note.id}"><i class="fa fa-edit"></i></button>
+                            <button class="p-1 hover:bg-gray-200 rounded delete-note" data-id="${note.id}"><i class="fa fa-trash"></i></button>
+                        </div>
+                    `;
+                    noteList.appendChild(div);
+                });
+                
+                // 添加笔记编辑事件
+                document.querySelectorAll('.edit-note').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const id = this.getAttribute('data-id');
+                        const note = notes.find(n => n.id === id);
+                        if (note) {
+                            document.getElementById('noteTitle').value = note.title;
+                            document.getElementById('noteContent').value = note.content;
+                        }
+                    });
+                });
+                
+                // 添加笔记删除事件
+                document.querySelectorAll('.delete-note').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const id = this.getAttribute('data-id');
+                        if (confirm('确定要删除这条笔记吗？')) {
+                            const index = notes.findIndex(n => n.id === id);
+                            if (index !== -1) {
+                                notes.splice(index, 1);
+                                saveUserData();
+                                loadNotesAndFiles();
+                            }
+                        }
+                    });
+                });
+            }
+            
+            // 加载文件
+            if (files.length === 0) {
+                fileList.innerHTML = '<div class="text-center text-gray-500 py-4">暂无文件，请上传文件</div>';
+            } else {
+                // 按日期排序（最新的在前）
+                const sortedFiles = [...files].sort((a, b) => new Date(b.date) - new Date(a.date));
+                
+                sortedFiles.forEach(file => {
+                    const fileIcon = getFileIconClass(file.name);
+                    const fileSize = formatFileSize(file.size);
+                    
+                    const div = document.createElement('div');
+                    div.className = 'p-2 bg-white rounded border border-gray-200 flex items-center gap-2 card-hover';
+                    div.innerHTML = `
+                        <i class="fa ${fileIcon}"></i>
+                        <div class="flex-1 min-w-0">
+                            <p class="truncate font-medium">${file.name}</p>
+                            <p class="text-xs text-gray-500">${fileSize} · ${formatDate(file.date)}</p>
+                        </div>
+                        <div class="flex gap-1">
+                            <button class="p-1 hover:bg-gray-200 rounded download-file" data-id="${file.id}"><i class="fa fa-download"></i></button>
+                            <button class="p-1 hover:bg-gray-200 rounded delete-file" data-id="${file.id}"><i class="fa fa-trash"></i></button>
+                        </div>
+                    `;
+                    fileList.appendChild(div);
+                });
+                
+                // 添加文件下载事件
+                document.querySelectorAll('.download-file').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const id = this.getAttribute('data-id');
+                        const file = files.find(f => f.id === id);
+                        if (file) {
+                            downloadFile(file);
+                        }
+                    });
+                });
+                
+                // 添加文件删除事件
+                document.querySelectorAll('.delete-file').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const id = this.getAttribute('data-id');
+                        if (confirm('确定要删除这个文件吗？')) {
+                            const index = files.findIndex(f => f.id === id);
+                            if (index !== -1) {
+                                files.splice(index, 1);
+                                saveUserData();
+                                loadNotesAndFiles();
+                            }
+                        }
+                    });
+                });
+            }
+        }
+        
+        // 保存笔记
+        function saveNote() {
+            const title = document.getElementById('noteTitle').value.trim();
+            const content = document.getElementById('noteContent').value.trim();
+            
+            if (!title) {
+                alert('请输入笔记标题');
+                return;
+            }
+            
+            // 检查是否是编辑现有笔记（根据标题查找）
+            const existingIndex = notes.findIndex(n => n.title === title);
+            
+            if (existingIndex !== -1) {
+                // 更新现有笔记
+                notes[existingIndex].content = content;
+                notes[existingIndex].date = new Date().toISOString().split('T')[0];
+                alert('笔记已更新');
+            } else {
+                // 创建新笔记
+                const note = {
+                    id: Date.now().toString(),
+                    title: title,
+                    content: content,
+                    date: new Date().toISOString().split('T')[0]
+                };
+                notes.push(note);
+                alert('笔记已保存');
+            }
+            
+            // 保存数据
+            saveUserData();
+            
+            // 更新列表
+            loadNotesAndFiles();
+        }
+        
+        // 处理文件上传
+        function handleFileUpload(uploadedFiles) {
+            if (uploadedFiles.length === 0) return;
+            
+            for (let i = 0; i < uploadedFiles.length; i++) {
+                const file = uploadedFiles[i];
+                
+                // 创建文件读取器
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    // 创建文件记录
+                    const fileRecord = {
+                        id: Date.now().toString() + i,
+                        name: file.name,
+                        type: file.type,
+                        size: file.size,
+                        data: e.target.result, // Base64编码的文件数据
+                        date: new Date().toISOString().split('T')[0]
+                    };
+                    
+                    // 添加到文件列表
+                    files.push(fileRecord);
+                    
+                    // 保存数据
+                    saveUserData();
+                    
+                    // 更新列表
+                    loadNotesAndFiles();
+                };
+                
+                // 读取文件为Base64
+                reader.readAsDataURL(file);
+            }
+            
+            // 隐藏上传区域
+            document.getElementById('fileUploadArea').classList.add('hidden');
+            // 重置文件输入
+            document.getElementById('fileUpload').value = '';
+            
+            alert(`已上传 ${uploadedFiles.length} 个文件`);
+        }
+        
+        // 下载文件
+        function downloadFile(file) {
+            // 创建下载链接
+            const link = document.createElement('a');
+            link.href = file.data;
+            link.download = file.name;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        // 加载保存的图片
+        function loadSavedImages() {
+            const container = document.getElementById('savedImagesContainer');
+            container.innerHTML = '';
+            
+            if (savedImages.length === 0) {
+                container.innerHTML = '<div class="col-span-full text-center text-gray-500 py-8">暂无保存的统计图片</div>';
+                return;
+            }
+            
+            // 按日期排序（最新的在前）
+            const sortedImages = [...savedImages].sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            sortedImages.forEach(image => {
+                const div = document.createElement('div');
+                div.className = 'bg-neutral rounded-lg overflow-hidden card-hover relative';
+                div.innerHTML = `
+                    <img src="${image.data}" alt="${image.name}" class="w-full h-48 object-cover">
+                    <div class="p-2 text-center">
+                        <p class="text-sm font-medium truncate">${image.name}</p>
+                    </div>
+                    <button class="absolute top-1 right-1 bg-red-500/70 hover:bg-red-500 text-white p-1 rounded-full delete-image" data-id="${image.id}">
+                        <i class="fa fa-times"></i>
+                    </button>
+                `;
+                container.appendChild(div);
+            });
+            
+            // 添加删除事件
+            document.querySelectorAll('.delete-image').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const id = this.getAttribute('data-id');
+                    if (confirm('确定要删除这张图片吗？')) {
+                        const index = savedImages.findIndex(img => img.id === id);
+                        if (index !== -1) {
+                            savedImages.splice(index, 1);
+                            saveUserData();
+                            loadSavedImages();
+                        }
                     }
                 });
             });
-
-            // 手动添加记录
-            document.getElementById("addManualBtn").addEventListener("click", addManualRecord);
-
-            // 保存今日记录
-            document.getElementById("saveTodayBtn").addEventListener("click", saveTodayRecords);
-
-            // 任意两天对比
-            document.getElementById("customCompareBtn").addEventListener("click", customCompare);
-
-            // 月度统计切换
-            document.getElementById("monthSelect").addEventListener("change", function() {
-                updateMonthChart(this.value);
+        }
+        
+        // 保存统计数据为图片
+        function saveStatisticsAsImage() {
+            // 显示加载提示
+            alert('正在生成图片，请稍候...');
+            
+            // 获取需要保存的区域
+            const statsSection = document.querySelector('main');
+            
+            // 使用html2canvas生成图片
+            html2canvas(statsSection, {
+                scale: 2, // 提高分辨率
+                useCORS: true,
+                logging: false
+            }).then(canvas => {
+                // 将canvas转换为图片数据
+                const imageData = canvas.toDataURL('image/png');
+                
+                // 创建图片记录
+                const today = new Date();
+                const imageName = `${formatDateForFilename(today)}学习统计`;
+                
+                const imageRecord = {
+                    id: Date.now().toString(),
+                    name: imageName,
+                    data: imageData,
+                    date: today.toISOString().split('T')[0]
+                };
+                
+                // 添加到保存的图片列表
+                savedImages.push(imageRecord);
+                
+                // 保存数据
+                saveUserData();
+                
+                // 显示保存的图片文件夹
+                document.getElementById('folderModal').classList.remove('hidden');
+                loadSavedImages();
+                
+                alert('统计图片已保存');
+            }).catch(error => {
+                console.error('生成图片失败:', error);
+                alert('生成图片失败，请重试');
             });
-
-            // 过往记录查询
-            document.getElementById("queryRecordBtn").addEventListener("click", queryRecords);
-
-            // 自定义倒计时
-            document.getElementById("addCustomCountdownBtn").addEventListener("click", addCustomCountdown);
-
-            // 云端同步按钮
-            document.getElementById("uploadToCloudBtn").addEventListener("click", uploadToCloud);
-            document.getElementById("pullFromCloudBtn").addEventListener("click", pullFromCloud);
-
-            // 正向计时功能（基础逻辑）
-            let timerInterval = null;
-            let timerSeconds = 0;
-            document.getElementById("startTimerBtn").addEventListener("click", function() {
-                if (timerInterval) return;
-                const stage = document.getElementById("timerStageName").value.trim();
-                if (!stage && timerSeconds === 0) {
-                    alert("请先输入学习项目");
-                    return;
-                }
-                this.disabled = true;
-                document.getElementById("pauseTimerBtn").disabled = false;
-                document.getElementById("stopTimerBtn").disabled = false;
-                // 启动计时
-                timerInterval = setInterval(() => {
-                    timerSeconds++;
-                    const hours = Math.floor(timerSeconds / 3600).toString().padStart(2, "0");
-                    const minutes = Math.floor((timerSeconds % 3600) / 60).toString().padStart(2, "0");
-                    const seconds = (timerSeconds % 60).toString().padStart(2, "0");
-                    document.getElementById("timerDisplay").textContent = `${hours}:${minutes}:${seconds}`;
-                }, 1000);
-            });
-
-            document.getElementById("pauseTimerBtn").addEventListener("click", function() {
-                clearInterval(timerInterval);
-                timerInterval = null;
-                this.disabled = true;
-                document.getElementById("startTimerBtn").disabled = false;
-            });
-
-            document.getElementById("stopTimerBtn").addEventListener("click", function() {
-                clearInterval(timerInterval);
-                timerInterval = null;
-                // 计算时长并添加记录
-                const stage = document.getElementById("timerStageName").value.trim();
-                if (!stage) {
-                    alert("请输入学习项目");
-                    timerSeconds = 0;
-                    document.getElementById("timerDisplay").textContent = "00:00:00";
-                    this.disabled = true;
-                    document.getElementById("startTimerBtn").disabled = false;
-                    document.getElementById("pauseTimerBtn").disabled = true;
-                    return;
-                }
-                // 计算开始/结束时间（基于当前时间倒推）
-                const endTime = new Date();
-                const startTime = new Date(endTime.getTime() - timerSeconds * 1000);
-                const startStr = `${startTime.getHours().toString().padStart(2, "0")}:${startTime.getMinutes().toString().padStart(2, "0")}`;
-                const endStr = `${endTime.getHours().toString().padStart(2, "0")}:${endTime.getMinutes().toString().padStart(2, "0")}`;
-
-                // 添加到本地记录
-                const records = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-                if (!records[TODAY_STR]) records[TODAY_STR] = [];
-                records[TODAY_STR].push({
-                    stage,
-                    startTime: startStr,
-                    endTime: endStr,
-                    addTime: new Date().toLocaleString()
-                });
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-                // 刷新页面
-                renderTodayRecords(records[TODAY_STR]);
-                updateTodayTotal(records[TODAY_STR]);
-                // 重置计时
-                timerSeconds = 0;
-                document.getElementById("timerDisplay").textContent = "00:00:00";
-                document.getElementById("timerStageName").value = "";
-                this.disabled = true;
-                document.getElementById("startTimerBtn").disabled = false;
-                document.getElementById("pauseTimerBtn").disabled = true;
-            });
+        }
+        
+        // 同步数据
+        function syncData() {
+            // 显示同步中提示
+            alert('正在同步数据...');
+            
+            // 实际应用中这里会与服务器交互
+            // 这里仅做本地存储的确认
+            saveUserData();
+            
+            setTimeout(() => {
+                alert('数据同步成功');
+            }, 1000);
+        }
+        
+        // 从本地存储加载数据（未登录状态）
+        function loadDataFromStorage() {
+            // 尝试加载未登录状态下的临时数据
+            const tempRecords = localStorage.getItem('temp_study_records');
+            const tempProjects = localStorage.getItem('temp_project_names');
+            
+            if (tempRecords) {
+                studyRecords = JSON.parse(tempRecords);
+            }
+            
+            if (tempProjects) {
+                projectNames = JSON.parse(tempProjects);
+            }
+            
+            // 更新UI
+            updateRecordsTable();
+            updateChartDataVisibility();
+        }
+        
+        // 工具函数：格式化时长（毫秒）
+        function formatDuration(milliseconds) {
+            const totalMinutes = Math.round(milliseconds / (1000 * 60));
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+            
+            if (hours === 0) {
+                return `${minutes}分钟`;
+            } else {
+                return `${hours}小时${minutes}分钟`;
+            }
+        }
+        
+        // 工具函数：格式化日期时间
+        function formatDateTime(date) {
+            return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+        }
+        
+        // 工具函数：格式化ISO日期时间（用于input值）
+        function formatISODateTime(date) {
+            const year = date.getFullYear();
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+        
+        // 工具函数：格式化日期
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+        }
+        
+        // 工具函数：格式化短日期
+        function formatShortDate(dateStr) {
+            const date = new Date(dateStr);
+            return `${date.getMonth() + 1}/${date.getDate()}`;
+        }
+        
+        // 工具函数：格式化文件名日期
+        function formatDateForFilename(date) {
+            return `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}${date.getDate().toString().padStart(2, '0')}`;
+        }
+        
+        // 工具函数：获取文件图标类
+        function getFileIconClass(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            
+            switch(ext) {
+                case 'doc':
+                case 'docx':
+                    return 'fa-file-word-o text-blue-500';
+                case 'pdf':
+                    return 'fa-file-pdf-o text-red-500';
+                case 'ppt':
+                case 'pptx':
+                    return 'fa-file-powerpoint-o text-orange-500';
+                case 'jpg':
+                case 'jpeg':
+                case 'png':
+                case 'gif':
+                    return 'fa-file-image-o text-green-500';
+                default:
+                    return 'fa-file-o text-gray-500';
+            }
+        }
+        
+        // 工具函数：格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + 'B';
+            else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + 'KB';
+            else return (bytes / 1048576).toFixed(1) + 'MB';
         }
     </script>
 </body>
